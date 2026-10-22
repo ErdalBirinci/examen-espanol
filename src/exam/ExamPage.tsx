@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -19,6 +19,8 @@ import SpeakingStep, { type RecordingPayload } from "./SpeakingStep";
 import ReviewStep from "./ReviewStep";
 import {
   deleteExamDraft,
+  getAssignment,
+  getCandidateAccount,
   getExamDraft,
   loadExamBundle,
   resumeExamDraft,
@@ -27,12 +29,12 @@ import {
   submitAttempt,
   uploadSpeakingRecording,
 } from "../lib/api";
-import { LEVELS, LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
+import type { Assignment } from "../lib/api";
+import { LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
 import { errorMessage, formatSeconds, wordCount } from "../lib/utils";
 
 type Stage = "intro" | "test" | "listening" | "writing" | "speaking" | "review" | "done";
 
-const CANDIDATE_KEY = "examen-espanol:candidate";
 const SESSION_PREFIX = "examen-espanol:session";
 
 interface Draft {
@@ -42,27 +44,16 @@ interface Draft {
   startedAt: number | null;
 }
 
-function readCandidate(): Candidate | null {
-  try {
-    const raw = localStorage.getItem(CANDIDATE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Candidate;
-    if (!parsed.firstName || !parsed.email) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 export default function ExamPage() {
-  const { level: levelParam } = useParams();
-  const level = (LEVELS as readonly string[]).includes(levelParam ?? "")
-    ? (levelParam as Level)
-    : null;
+  const { assignmentId } = useParams();
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
-  const candidate = useMemo(readCandidate, []);
-  const draftKey = candidate && level ? `examen-espanol:draft:${candidate.email}:${level}` : "";
-  const sessionKey = candidate && level ? `${SESSION_PREFIX}:${candidate.email}:${level}` : "";
+  const level: Level | null = assignment?.level ?? null;
+  const draftKey = candidate && assignmentId ? `examen-espanol:draft:${candidate.email}:${assignmentId}` : "";
+  const sessionKey = candidate && assignmentId ? `${SESSION_PREFIX}:${candidate.email}:${assignmentId}` : "";
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +76,50 @@ export default function ExamPage() {
   const [resumeError, setResumeError] = useState<string | null>(null);
 
   const submitRef = useRef(false);
+
+  // Access is granted only while signed in and only for an assignment that
+  // belongs to this account; the assignment is re-read from the server.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const account = await getCandidateAccount();
+        if (!active) return;
+        if (!account) {
+          setAccessError("Debes iniciar sesión para abrir este examen.");
+          return;
+        }
+        if (!assignmentId) {
+          setAccessError("Este enlace de examen no es válido.");
+          return;
+        }
+        const row = await getAssignment(assignmentId);
+        if (!active) return;
+        if (!row) {
+          setAccessError("Este examen no está asignado a tu cuenta.");
+          return;
+        }
+        if (row.attempt_id) {
+          setAccessError("Ya has enviado este examen. No se puede repetir.");
+          return;
+        }
+        const parts = account.fullName.split(/\s+/);
+        setCandidate({
+          firstName: parts[0] ?? "Aday",
+          lastName: parts.slice(1).join(" "),
+          email: account.email,
+        });
+        setAssignment(row);
+      } catch (error) {
+        if (active) setAccessError(errorMessage(error));
+      } finally {
+        if (active) setAccessLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [assignmentId]);
 
   const fetchBundle = useCallback(async () => {
     if (!level) return;
@@ -266,6 +301,7 @@ export default function ExamPage() {
         writingText: writing,
         speakingPath,
         speakingDuration: recording?.duration ?? null,
+        assignmentId: assignmentId ?? "",
       });
       setAttemptCode(id.slice(0, 8).toUpperCase());
       try {
@@ -292,8 +328,30 @@ export default function ExamPage() {
     void handleSubmit();
   }, [expired, stage, handleSubmit]);
 
-  if (!level) return <Navigate to="/" replace />;
-  if (!candidate) return <Navigate to="/" replace />;
+  if (accessLoading) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-muted">
+        <Spinner className="size-6" />
+        <p className="text-[13px]">Comprobando tu acceso…</p>
+      </div>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[#fbfbfd] px-5">
+        <div className="card w-full max-w-md p-8 text-center">
+          <h1 className="text-[20px] font-semibold">No se puede abrir este examen</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">{accessError}</p>
+          <Link to="/cuenta" className="mt-5 inline-block">
+            <Button variant="secondary">Volver a mi panel</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!level || !candidate) return <Navigate to="/cuenta" replace />;
 
   const activeIndex =
     stage === "test"

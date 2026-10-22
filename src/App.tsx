@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import Welcome from "./exam/Welcome";
 import ExamPage from "./exam/ExamPage";
 import ResultPage from "./exam/ResultPage";
+import CandidatePortal from "./exam/CandidatePortal";
 import AdminLogin from "./admin/AdminLogin";
 import AdminGate from "./admin/AdminGate";
 import Overview from "./admin/Overview";
@@ -12,6 +13,7 @@ import Questions from "./admin/Questions";
 import Listening from "./admin/Listening";
 import Writing from "./admin/Writing";
 import Speaking from "./admin/Speaking";
+import Assignments from "./admin/Assignments";
 import { isSupabaseConfigured } from "./lib/config";
 
 export default function App() {
@@ -25,7 +27,8 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<Welcome />} />
-        <Route path="/examen/:level" element={<ExamPage />} />
+        <Route path="/cuenta" element={<CandidatePortal />} />
+        <Route path="/examen/:assignmentId" element={<ExamPage />} />
         <Route path="/resultado" element={<ResultPage />} />
 
         <Route path="/adminpanel">
@@ -37,6 +40,7 @@ export default function App() {
             <Route path="dinleme" element={<Listening />} />
             <Route path="yazma" element={<Writing />} />
             <Route path="konusma" element={<Speaking />} />
+            <Route path="atamalar" element={<Assignments />} />
           </Route>
         </Route>
 

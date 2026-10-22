@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Check, Headphones, ListChecks, Mic, PenLine, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Headphones, ListChecks, LogOut, Mic, PenLine, ShieldCheck } from "lucide-react";
 import { Button, Field, Notice } from "../components/ui";
-import { LEVELS, LEVEL_INFO, type Candidate, type Level } from "../lib/types";
-import { cn } from "../lib/utils";
+import {
+  getCandidateAccount,
+  registerCandidate,
+  signInCandidate,
+  signOutCandidate,
+  type CandidateAccount,
+} from "../lib/api";
+import { errorMessage } from "../lib/utils";
 
 const FEATURES = [
   {
@@ -28,34 +34,82 @@ const FEATURES = [
   },
 ];
 
-const STORAGE_KEY = "examen-espanol:candidate";
-
 export default function Welcome() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"details" | "level">("details");
-  const [candidate, setCandidate] = useState<Candidate>({ firstName: "", lastName: "", email: "" });
-  const [errors, setErrors] = useState<Partial<Record<keyof Candidate, string>>>({});
-  const [level, setLevel] = useState<Level | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [account, setAccount] = useState<CandidateAccount | null>(null);
+  const [checking, setChecking] = useState(true);
 
-  function validate(): boolean {
-    const next: Partial<Record<keyof Candidate, string>> = {};
-    if (candidate.firstName.trim().length < 2) next.firstName = "Escribe tu nombre.";
-    if (candidate.lastName.trim().length < 2) next.lastName = "Escribe tus apellidos.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(candidate.email.trim()))
-      next.email = "Introduce un correo electrónico válido.";
-    setErrors(next);
-    return Object.keys(next).length === 0;
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getCandidateAccount()
+      .then((value) => {
+        if (active) setAccount(value);
+      })
+      .finally(() => {
+        if (active) setChecking(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await signInCandidate(email, password);
+      navigate("/cuenta");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function startExam() {
-    if (!level) return;
-    const clean: Candidate = {
-      firstName: candidate.firstName.trim(),
-      lastName: candidate.lastName.trim(),
-      email: candidate.email.trim().toLowerCase(),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
-    navigate(`/examen/${level}`);
+  async function handleRegister(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    if (fullName.trim().length < 3) {
+      setError("Escribe tu nombre y apellidos.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = await registerCandidate({ fullName, email, password });
+      if (result.needsConfirmation) {
+        setMessage(
+          "Cuenta creada. Revisa tu correo y confirma la dirección antes de iniciar sesión.",
+        );
+        setMode("login");
+      } else {
+        navigate("/cuenta");
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -87,8 +141,8 @@ export default function Welcome() {
           </h1>
 
           <p className="mt-6 max-w-lg text-[16px] leading-relaxed text-muted">
-            Elige tu nivel y completa las cuatro secciones del examen: vocabulario y gramática,
-            comprensión auditiva, expresión escrita y expresión oral. Tómate tu tiempo, no hay prisa.
+            Inicia sesión para ver los exámenes que tu centro te ha asignado. Solo aparecen las
+            pruebas asignadas a tu cuenta y puedes completarlas a tu ritmo dentro del plazo.
           </p>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-2">
@@ -107,7 +161,7 @@ export default function Welcome() {
 
           <p className="mt-8 flex items-center gap-2 text-[12px] text-faint">
             <Check className="size-3.5" />
-            Tiempo limitado según el nivel (45—90 min) · Progreso guardado en este dispositivo
+            Tiempo limitado según el nivel · Progreso guardado en el servidor
           </p>
 
           <p className="mt-3 text-[12px] text-faint">
@@ -120,172 +174,178 @@ export default function Welcome() {
 
         <section className="anim-rise" style={{ animationDelay: "120ms" }}>
           <div className="card p-6 sm:p-8">
-            <div className="flex items-center gap-2 text-[11.5px] font-medium tracking-[0.02em] text-muted">
-              <StepDot active={step === "details"} done={step === "level"} index={1} label="Datos" />
-              <span className="h-px flex-1 bg-line" />
-              <StepDot active={step === "level"} done={false} index={2} label="Nivel" />
-            </div>
-
-            {step === "details" ? (
-              <div className="anim-fade mt-7">
-                <h2 className="text-[24px] font-semibold tracking-[-0.02em]">Crea tu acceso</h2>
-                <p className="mt-1.5 text-[13.5px] text-muted">
-                  Usaremos estos datos para identificar tu examen.
+            {checking ? (
+              <p className="py-10 text-center text-[13px] text-muted">Comprobando sesión…</p>
+            ) : account ? (
+              <div className="text-center">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#eef8f1] text-success">
+                  <Check className="size-5" strokeWidth={2.4} />
+                </div>
+                <h2 className="mt-4 text-[22px] font-semibold tracking-[-0.02em]">
+                  Hola, {account.fullName.split(" ")[0]}
+                </h2>
+                <p className="mt-1 text-[13px] text-muted">
+                  Sesión iniciada como {account.email}
                 </p>
-
-                <form
-                  className="mt-6 space-y-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (validate()) setStep("level");
+                <Button className="mt-6 w-full" size="lg" onClick={() => navigate("/cuenta")}>
+                  Ver mis exámenes
+                </Button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await signOutCandidate();
+                    setAccount(null);
                   }}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] text-muted transition hover:text-ink"
                 >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Nombre" htmlFor="firstName" error={errors.firstName}>
-                      <input
-                        id="firstName"
-                        className="field"
-                        autoComplete="given-name"
-                        placeholder="Lucía"
-                        value={candidate.firstName}
-                        onChange={(e) => setCandidate({ ...candidate, firstName: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Apellidos" htmlFor="lastName" error={errors.lastName}>
-                      <input
-                        id="lastName"
-                        className="field"
-                        autoComplete="family-name"
-                        placeholder="García Ruiz"
-                        value={candidate.lastName}
-                        onChange={(e) => setCandidate({ ...candidate, lastName: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-
-                  <Field label="Correo electrónico" htmlFor="email" error={errors.email}>
-                    <input
-                      id="email"
-                      type="email"
-                      className="field"
-                      autoComplete="email"
-                      placeholder="lucia@correo.com"
-                      value={candidate.email}
-                      onChange={(e) => setCandidate({ ...candidate, email: e.target.value })}
-                    />
-                  </Field>
-
-                  <Button type="submit" size="lg" className="mt-2 w-full" icon={<ArrowRight className="size-4" />}>
-                    Continuar
-                  </Button>
-                </form>
-
-                <p className="mt-4 text-center text-[11.5px] leading-relaxed text-faint">
-                  Al continuar aceptas que tus respuestas se guarden para su evaluación.
-                </p>
+                  <LogOut className="size-3.5" />
+                  Cerrar sesión
+                </button>
               </div>
             ) : (
-              <div className="anim-fade mt-7">
-                <h2 className="text-[24px] font-semibold tracking-[-0.02em]">Elige tu nivel</h2>
-                <p className="mt-1.5 text-[13.5px] text-muted">
-                  Sé sincero contigo mismo: el examen se adapta al nivel que elijas.
-                </p>
-
-                <div className="mt-5 grid grid-cols-2 gap-2.5">
-                  {LEVELS.map((code) => {
-                    const info = LEVEL_INFO[code];
-                    const active = level === code;
-                    return (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => setLevel(code)}
-                        aria-pressed={active}
-                        className={cn(
-                          "focus-ring relative rounded-2xl border bg-gradient-to-br p-3.5 text-left transition-all duration-200",
-                          info.tint,
-                          active
-                            ? "border-accent/70 shadow-[0_10px_30px_-18px_rgba(0,113,227,0.9)]"
-                            : "border-line hover:border-[#cfcfd6]",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[15px] font-semibold tracking-[-0.01em]">{code}</span>
-                          {active && (
-                            <span className="flex size-4.5 items-center justify-center rounded-full bg-accent text-white">
-                              <Check className="size-3" strokeWidth={3} />
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-[12px] font-medium text-ink/70">{info.name}</p>
-                        <p className="mt-1 text-[11.5px] leading-snug text-muted">{info.blurb}</p>
-                      </button>
-                    );
-                  })}
+              <>
+                <div className="flex rounded-xl bg-[#f2f2f5] p-1">
+                  {(
+                    [
+                      { key: "login", label: "Iniciar sesión" },
+                      { key: "register", label: "Crear cuenta" },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setMode(key);
+                        setError(null);
+                        setMessage(null);
+                      }}
+                      className={`flex-1 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+                        mode === key ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
-                {!level && (
+                {error && (
                   <div className="mt-4">
-                    <Notice>Selecciona un nivel para comenzar.</Notice>
+                    <Notice tone="danger">{error}</Notice>
+                  </div>
+                )}
+                {message && (
+                  <div className="mt-4">
+                    <Notice tone="success">{message}</Notice>
                   </div>
                 )}
 
-                <Button
-                  size="lg"
-                  className="mt-5 w-full"
-                  disabled={!level}
-                  onClick={startExam}
-                  icon={<ArrowRight className="size-4" />}
-                >
-                  Comenzar el examen
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setStep("details")}
-                  className="mt-3 w-full text-center text-[12.5px] text-muted transition hover:text-ink"
-                >
-                  Volver a mis datos
-                </button>
-              </div>
+                {mode === "login" ? (
+                  <form className="mt-6 space-y-4" onSubmit={(event) => void handleLogin(event)}>
+                    <Field label="Correo electrónico" htmlFor="login-email">
+                      <input
+                        id="login-email"
+                        type="email"
+                        className="field"
+                        autoComplete="email"
+                        placeholder="lucia@correo.com"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="Contraseña" htmlFor="login-password">
+                      <input
+                        id="login-password"
+                        type="password"
+                        className="field"
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Button type="submit" size="lg" className="w-full" loading={busy}>
+                      Entrar
+                    </Button>
+                  </form>
+                ) : (
+                  <form className="mt-6 space-y-4" onSubmit={(event) => void handleRegister(event)}>
+                    <Field
+                      label="Nombre y apellidos"
+                      htmlFor="register-name"
+                      hint="Los mismos datos que usaste en tu examen anterior."
+                    >
+                      <input
+                        id="register-name"
+                        className="field"
+                        autoComplete="name"
+                        placeholder="Lucía García Ruiz"
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="Correo electrónico" htmlFor="register-email">
+                      <input
+                        id="register-email"
+                        type="email"
+                        className="field"
+                        autoComplete="email"
+                        placeholder="lucia@correo.com"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Contraseña" htmlFor="register-password" hint="Mínimo 8 caracteres.">
+                        <input
+                          id="register-password"
+                          type="password"
+                          className="field"
+                          autoComplete="new-password"
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="Repetir contraseña" htmlFor="register-confirm">
+                        <input
+                          id="register-confirm"
+                          type="password"
+                          className="field"
+                          autoComplete="new-password"
+                          value={confirm}
+                          onChange={(event) => setConfirm(event.target.value)}
+                          required
+                        />
+                      </Field>
+                    </div>
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className="w-full"
+                      loading={busy}
+                      icon={<ArrowRight className="size-4" />}
+                    >
+                      Crear cuenta
+                    </Button>
+                    <p className="text-[11.5px] leading-relaxed text-faint">
+                      Solo pueden registrarse personas que ya hayan realizado un examen con este
+                      correo. Si no es tu caso, contacta con tu centro.
+                    </p>
+                  </form>
+                )}
+              </>
             )}
           </div>
 
           <p className="mt-5 text-center text-[11.5px] text-faint">
-            Tus respuestas se envían al finalizar. No compartas tu enlace de examen.
+            Tus datos se usan únicamente para gestionar tus exámenes.
           </p>
         </section>
       </main>
     </div>
-  );
-}
-
-function StepDot({
-  index,
-  label,
-  active,
-  done,
-}: {
-  index: number;
-  label: string;
-  active: boolean;
-  done: boolean;
-}) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span
-        className={cn(
-          "flex size-5 items-center justify-center rounded-full text-[10.5px] font-semibold transition",
-          done
-            ? "bg-success text-white"
-            : active
-              ? "bg-ink text-white"
-              : "bg-[#f0f0f3] text-faint",
-        )}
-      >
-        {done ? <Check className="size-3" strokeWidth={3} /> : index}
-      </span>
-      <span className={cn("text-[11.5px]", active || done ? "text-ink" : "text-faint")}>{label}</span>
-    </span>
   );
 }

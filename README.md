@@ -122,7 +122,23 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 - `position` verilmezse mevcut soruların ardına sırayla eklenir.
 - En az iki seçenek gerekir; boş seçenek içeren satırlar reddedilir.
 
-## 5. Sınav akışı
+## 5. Aday üyeliği ve sınav atamaları
+
+- Adaylar ana sayfadaki **Crear cuenta** ile e-posta + şifre belirleyerek kayıt olur. Kayıt yalnızca
+  daha önce sınav göndermiş veya kendisine atama yapılmış e-postalarla mümkündür
+  (`check_candidate_email`).
+- Kayıt sonrası aday **/cuenta** panelinde yalnızca kendisine atanan sınavları görür; başka bir
+  atamanın bağlantısını açsa bile sunucu erişimi reddeder (RLS + `candidate_assignments`).
+- Yönetici **Aday Sınavları** sayfasından e-posta, seviye, başlık, not ve son tarih girerek atama
+  yapar; atamayı silebilir. Aday sınavı gönderdikten sonra tekrar giremez, sonuç bağlantısı görünür.
+- Gönderim `submit_attempt` RPC'sinde atama kimliği ister; atama-e-posta ve atama-seviye eşleşmesi,
+  son tarih ve tekrar gönderim sunucuda kontrol edilir. `attempts.assignment_id` benzersizdir.
+- Supabase Auth → Sign In / Providers bölümünde **Confirm email** kapatılmıştır; aksi halde adaylar
+  onay e-postası gelmeden giriş yapamaz. İstersen açıp kendi SMTP sunucunu bağlayabilirsin.
+- Eski herkese açık `/examen/A1` akışı kaldırıldı; sınav adresi artık atama kimliği içerir
+  (`/examen/<assignment-id>`).
+
+## 6. Sınav akışı
 
 1. Aday ad, soyad ve e-posta girer, seviyesini seçer (A1–C2).
 2. **Vocabulario y Gramática:** 50 çoktan seçmeli soru (seviyede kaç soru varsa o kadar gösterilir).
@@ -142,7 +158,7 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 10. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
     görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
 
-## 6. Notlar ve sınırlar
+## 7. Notlar ve sınırlar
 
 - Dinleme sesleri herkese açık okunur (aday dinleyebilsin diye); konuşma kayıtları **özel** kovadadır,
   panelde imzalı (geçici) bağlantı ile açılır. Dinleme hakkı (`max_plays`) istemcide sayılır; dosya
@@ -173,4 +189,5 @@ supabase/
   schema.sql   Tablolar, RLS, storage kovaları, puanlama
   seed.sql     Örnek içerik
   migrations/  Sonradan eklenen şema ve RPC'ler (sırayla uygula)
+  functions/   notify-result edge function (sonuç e-postası)
 ```

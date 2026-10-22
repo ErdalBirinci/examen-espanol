@@ -102,6 +102,7 @@ export interface SubmitAttemptInput {
   writingText: string;
   speakingPath: string | null;
   speakingDuration: number | null;
+  assignmentId: string;
 }
 
 export async function submitAttempt(input: SubmitAttemptInput): Promise<string> {
@@ -116,12 +117,28 @@ export async function submitAttempt(input: SubmitAttemptInput): Promise<string> 
     p_writing_text: input.writingText,
     p_speaking_path: input.speakingPath,
     p_speaking_duration: input.speakingDuration,
+    p_assignment_id: input.assignmentId,
   });
 
   if (error) {
     const message = error.message ?? "";
     if (message.includes("RATE_LIMIT")) {
       fail("Bu e-posta ile 2 dakika içinde yalnızca bir sınav gönderilebilir. Lütfen biraz bekle.");
+    }
+    if (message.includes("ASSIGNMENT_REQUIRED") || message.includes("ASSIGNMENT_NOT_FOUND")) {
+      fail("Bu sınav ataması bulunamadı. Panelinden sınavı yeniden aç.");
+    }
+    if (message.includes("ASSIGNMENT_MISMATCH")) {
+      fail("Bu sınav bu e-posta adresine atanmamış.");
+    }
+    if (message.includes("ALREADY_SUBMITTED")) {
+      fail("Bu sınav daha önce gönderilmiş.");
+    }
+    if (message.includes("DUE_DATE_PASSED")) {
+      fail("Bu sınavın son gönderim tarihi geçmiş.");
+    }
+    if (message.includes("LEVEL_MISMATCH")) {
+      fail("Sınav seviyesi atamayla uyuşmuyor.");
     }
     if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
     if (message.includes("INVALID_NAME")) fail("Ad ve soyad geçersiz görünüyor.");
@@ -219,6 +236,138 @@ export async function lookupAttemptResult(code: string, email: string): Promise<
     fail(`Sonuç sorgulanamadı: ${message}`);
   }
   return (data as unknown as AttemptResult | null) ?? null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Aday hesapları ve atamalar                                        */
+/* ------------------------------------------------------------------ */
+
+export interface CandidateAccount {
+  id: string;
+  email: string;
+  fullName: string;
+}
+
+export interface Assignment {
+  id: string;
+  level: Level;
+  title: string | null;
+  note: string | null;
+  due_at: string | null;
+  created_at: string;
+  attempt_id: string | null;
+  attempt_status: "submitted" | "graded" | null;
+  submitted_at: string | null;
+}
+
+export async function getCandidateAccount(): Promise<CandidateAccount | null> {
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
+  if (!user?.email) return null;
+  const metadata = (user.user_metadata ?? {}) as { full_name?: string };
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: metadata.full_name?.trim() || user.email.split("@")[0],
+  };
+}
+
+export async function checkCandidateEmail(email: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("check_candidate_email", {
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) fail(`E-posta kontrol edilemedi: ${error.message}`);
+  return Boolean(data);
+}
+
+export async function registerCandidate(input: {
+  fullName: string;
+  email: string;
+  password: string;
+}): Promise<{ needsConfirmation: boolean }> {
+  const email = input.email.trim().toLowerCase();
+  const registered = await checkCandidateEmail(email);
+  if (!registered) {
+    fail(
+      "Bu e-posta ile daha önce bir sınav kaydı bulunamadı. Önce ad soyad ve e-posta ile sınava girmiş olman gerekiyor.",
+    );
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: input.password,
+    options: { data: { full_name: input.fullName.trim() } },
+  });
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) {
+      fail("Bu e-posta ile zaten bir hesap var. Giriş yapmayı dene.");
+    }
+    fail(`Kayıt tamamlanamadı: ${error.message}`);
+  }
+  return { needsConfirmation: !data.session };
+}
+
+export async function signInCandidate(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) fail("E-posta veya şifre hatalı.");
+}
+
+export async function signOutCandidate(): Promise<void> {
+  await supabase.auth.signOut();
+}
+
+export async function listMyAssignments(): Promise<Assignment[]> {
+  const { data, error } = await supabase.rpc("candidate_assignments");
+  if (error) fail(`Sınavlar yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as Assignment[];
+}
+
+export async function getAssignment(id: string): Promise<Assignment | null> {
+  const { data, error } = await supabase.rpc("candidate_assignments");
+  if (error) fail(`Sınav bilgisi yüklenemedi: ${error.message}`);
+  const rows = (data ?? []) as unknown as Assignment[];
+  return rows.find((row) => row.id === id) ?? null;
+}
+
+export interface AdminAssignment extends Assignment {
+  email: string;
+  attempts?: { id: string; status: string; full_name: string }[];
+}
+
+export async function listAllAssignments(): Promise<AdminAssignment[]> {
+  const { data, error } = await supabase
+    .from("exam_assignments")
+    .select("*, attempts(id, status, full_name)")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) fail(`Atamalar yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as AdminAssignment[];
+}
+
+export async function saveAssignment(input: {
+  email: string;
+  level: Level;
+  title: string;
+  note: string;
+  dueAt: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from("exam_assignments").insert({
+    email: input.email.trim().toLowerCase(),
+    level: input.level,
+    title: input.title.trim() || null,
+    note: input.note.trim() || null,
+    due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
+    created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+  });
+  if (error) fail(`Sınav atanamadı: ${error.message}`);
+}
+
+export async function deleteAssignment(id: string): Promise<void> {
+  const { error } = await supabase.from("exam_assignments").delete().eq("id", id);
+  if (error) fail(`Atama silinemedi: ${error.message}`);
 }
 
 /* ------------------------------------------------------------------ */

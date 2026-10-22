@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ClipboardCheck, Clock3, Search } from "lucide-react";
 import { Button, Field, Notice } from "../components/ui";
 import { lookupAttemptResult } from "../lib/api";
@@ -33,8 +33,9 @@ function formatDate(value: string): string {
 }
 
 export default function ResultPage() {
-  const [code, setCode] = useState("");
-  const [email, setEmail] = useState(readEmail);
+  const [params] = useSearchParams();
+  const [code, setCode] = useState(() => (params.get("code") ?? "").slice(0, 8).toUpperCase());
+  const [email, setEmail] = useState(() => params.get("email") ?? readEmail());
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
