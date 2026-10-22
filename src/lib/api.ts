@@ -135,6 +135,78 @@ export async function submitAttempt(input: SubmitAttemptInput): Promise<string> 
   return data as string;
 }
 
+export interface ExamDraftSnapshot {
+  token: string;
+  code: string;
+  level: Level;
+  started_at: string;
+  updated_at: string;
+  mc_answers: Record<string, number>;
+  listening_answers: Record<string, string>;
+  writing_text: string;
+}
+
+export async function startExamDraft(
+  candidate: Candidate,
+  level: Level,
+): Promise<{ token: string; code: string; startedAt: string }> {
+  const { data, error } = await supabase.rpc("start_exam_draft", {
+    p_level: level,
+    p_full_name: `${candidate.firstName} ${candidate.lastName}`.trim(),
+    p_email: candidate.email.trim().toLowerCase(),
+  });
+  if (error) fail(`Sınav taslağı başlatılamadı: ${error.message}`);
+  const row = data as { token: string; code: string; started_at: string };
+  return { token: row.token, code: row.code, startedAt: row.started_at };
+}
+
+export async function saveExamDraft(
+  token: string,
+  mcAnswers: Record<string, number>,
+  listeningAnswers: Record<string, string>,
+  writing: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("save_exam_draft", {
+    p_token: token,
+    p_mc_answers: mcAnswers,
+    p_listening_answers: listeningAnswers,
+    p_writing_text: writing,
+  });
+  if (error) fail(`Taslak kaydedilemedi: ${error.message}`);
+}
+
+export async function getExamDraft(token: string): Promise<ExamDraftSnapshot | null> {
+  const { data, error } = await supabase.rpc("get_exam_draft", { p_token: token });
+  if (error) fail(`Taslak yüklenemedi: ${error.message}`);
+  return (data as unknown as ExamDraftSnapshot | null) ?? null;
+}
+
+export async function resumeExamDraft(
+  code: string,
+  email: string,
+  level: Level,
+): Promise<ExamDraftSnapshot | null> {
+  const { data, error } = await supabase.rpc("resume_exam_draft", {
+    p_code: code.trim().toUpperCase(),
+    p_email: email.trim().toLowerCase(),
+    p_level: level,
+  });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("INVALID_CODE")) fail("Kod 8 karakter olmalı (ör. 4F2A9C1B).");
+    if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
+    fail(`Taslak sorgulanamadı: ${message}`);
+  }
+  return (data as unknown as ExamDraftSnapshot | null) ?? null;
+}
+
+export async function deleteExamDraft(code: string, email: string): Promise<void> {
+  await supabase.rpc("delete_exam_draft", {
+    p_code: code.trim().toUpperCase(),
+    p_email: email.trim().toLowerCase(),
+  });
+}
+
 export async function lookupAttemptResult(code: string, email: string): Promise<AttemptResult | null> {
   const { data, error } = await supabase.rpc("lookup_attempt_result", {
     p_code: code.trim().toLowerCase(),
@@ -199,6 +271,40 @@ export async function listAttempts(): Promise<Attempt[]> {
     .limit(500);
   if (error) fail(`Sınavlar yüklenemedi: ${error.message}`);
   return (data ?? []) as unknown as Attempt[];
+}
+
+export interface AttemptQuery {
+  level: Level | "all";
+  status: "all" | "submitted" | "graded";
+  search: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface AttemptPage {
+  rows: Attempt[];
+  total: number;
+}
+
+export async function listAttemptsPage(query: AttemptQuery): Promise<AttemptPage> {
+  let request = supabase.from("attempts").select("*", { count: "exact" });
+
+  if (query.level !== "all") request = request.eq("level", query.level);
+  if (query.status !== "all") request = request.eq("status", query.status);
+
+  // Commas and parentheses would break PostgREST's or() filter syntax.
+  const needle = query.search.trim().slice(0, 80).replace(/[,()\\]/g, " ");
+  if (needle) {
+    request = request.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`);
+  }
+
+  const from = Math.max(0, (query.page - 1) * query.pageSize);
+  const { data, error, count } = await request
+    .order("created_at", { ascending: false })
+    .range(from, from + query.pageSize - 1);
+
+  if (error) fail(`Sınavlar yüklenemedi: ${error.message}`);
+  return { rows: (data ?? []) as unknown as Attempt[], total: count ?? 0 };
 }
 
 export interface GradeInput {

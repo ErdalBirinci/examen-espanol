@@ -17,13 +17,23 @@ import ListeningStep from "./ListeningStep";
 import WritingStep from "./WritingStep";
 import SpeakingStep, { type RecordingPayload } from "./SpeakingStep";
 import ReviewStep from "./ReviewStep";
-import { loadExamBundle, submitAttempt, uploadSpeakingRecording } from "../lib/api";
+import {
+  deleteExamDraft,
+  getExamDraft,
+  loadExamBundle,
+  resumeExamDraft,
+  saveExamDraft,
+  startExamDraft,
+  submitAttempt,
+  uploadSpeakingRecording,
+} from "../lib/api";
 import { LEVELS, LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
 import { errorMessage, formatSeconds, wordCount } from "../lib/utils";
 
 type Stage = "intro" | "test" | "listening" | "writing" | "speaking" | "review" | "done";
 
 const CANDIDATE_KEY = "examen-espanol:candidate";
+const SESSION_PREFIX = "examen-espanol:session";
 
 interface Draft {
   mcAnswers: Record<string, number>;
@@ -52,6 +62,7 @@ export default function ExamPage() {
 
   const candidate = useMemo(readCandidate, []);
   const draftKey = candidate && level ? `examen-espanol:draft:${candidate.email}:${level}` : "";
+  const sessionKey = candidate && level ? `${SESSION_PREFIX}:${candidate.email}:${level}` : "";
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +79,10 @@ export default function ExamPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attemptCode, setAttemptCode] = useState<string | null>(null);
+  const [draftToken, setDraftToken] = useState<string | null>(null);
+  const [draftCode, setDraftCode] = useState<string | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
 
   const submitRef = useRef(false);
 
@@ -91,21 +106,51 @@ export default function ExamPage() {
   // Restore a previous draft so a refresh mid-exam does not lose work.
   useEffect(() => {
     setHydrated(false);
-    if (!draftKey) return;
-    try {
-      const raw = localStorage.getItem(draftKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as Partial<Draft>;
-        if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
-        if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
-        if (typeof draft.writing === "string") setWriting(draft.writing);
-        if (typeof draft.startedAt === "number") setStartedAt(draft.startedAt);
+    let active = true;
+
+    async function restore() {
+      if (!draftKey) return;
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (raw) {
+          const draft = JSON.parse(raw) as Partial<Draft>;
+          if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
+          if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
+          if (typeof draft.writing === "string") setWriting(draft.writing);
+          if (typeof draft.startedAt === "number") setStartedAt(draft.startedAt);
+        }
+      } catch {
+        /* ignore corrupt drafts */
       }
-    } catch {
-      /* ignore corrupt drafts */
+
+      // The server copy wins when it is available, so a draft also survives a
+      // cleared browser or a different device.
+      const rawSession = sessionKey ? localStorage.getItem(sessionKey) : null;
+      if (!rawSession) return;
+      try {
+        const session = JSON.parse(rawSession) as { token?: string; code?: string };
+        if (!session.token) return;
+        const snapshot = await getExamDraft(session.token);
+        if (!active) return;
+        if (!snapshot) {
+          localStorage.removeItem(sessionKey);
+          return;
+        }
+        applyDraftSnapshot(snapshot);
+      } catch {
+        /* keep the local copy if the server is unreachable */
+      }
     }
-    setHydrated(true);
-  }, [draftKey]);
+
+    void restore().finally(() => {
+      if (active) setHydrated(true);
+    });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, sessionKey]);
 
   useEffect(() => {
     // Never write before the restore above has run, otherwise the empty initial
@@ -114,6 +159,15 @@ export default function ExamPage() {
     const draft: Draft = { mcAnswers, listeningAnswers, writing, startedAt };
     localStorage.setItem(draftKey, JSON.stringify(draft));
   }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, startedAt, stage]);
+
+  // Mirror the answers to the server so another device can resume the exam.
+  useEffect(() => {
+    if (!draftToken || !hydrated || !startedAt || stage === "done") return;
+    const timer = window.setTimeout(() => {
+      void saveExamDraft(draftToken, mcAnswers, listeningAnswers, writing).catch(() => undefined);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [draftToken, hydrated, startedAt, stage, mcAnswers, listeningAnswers, writing]);
 
   const durationMinutes = bundle?.settings.duration_minutes ?? 60;
   const endsAt = startedAt ? startedAt + durationMinutes * 60_000 : null;
@@ -130,6 +184,69 @@ export default function ExamPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stage]);
+
+  function applyDraftSnapshot(snapshot: {
+    token: string;
+    code: string;
+    started_at: string;
+    mc_answers: Record<string, number>;
+    listening_answers: Record<string, string>;
+    writing_text: string;
+  }) {
+    setDraftToken(snapshot.token);
+    setDraftCode(snapshot.code);
+    setMcAnswers(snapshot.mc_answers ?? {});
+    setListeningAnswers(snapshot.listening_answers ?? {});
+    setWriting(snapshot.writing_text ?? "");
+    setStartedAt(new Date(snapshot.started_at).getTime());
+  }
+
+  async function beginExam() {
+    if (expired || !candidate || !level || draftBusy) return;
+    setDraftBusy(true);
+    try {
+      const draft = await startExamDraft(candidate, level);
+      setDraftToken(draft.token);
+      setDraftCode(draft.code);
+      setStartedAt(new Date(draft.startedAt).getTime());
+      try {
+        localStorage.setItem(sessionKey, JSON.stringify({ token: draft.token, code: draft.code }));
+      } catch {
+        /* storage can be unavailable */
+      }
+    } catch (error) {
+      // The exam can still start locally; the draft will not sync across devices.
+      setStartedAt((current) => current ?? Date.now());
+      setSubmitError(errorMessage(error));
+    } finally {
+      setDraftBusy(false);
+      setStage("test");
+    }
+  }
+
+  async function handleResume(code: string, email: string) {
+    if (!level || draftBusy) return;
+    setDraftBusy(true);
+    setResumeError(null);
+    try {
+      const snapshot = await resumeExamDraft(code, email, level);
+      if (!snapshot) {
+        setResumeError("Bu kod ve e-posta ile açık bir taslak bulunamadı.");
+        return;
+      }
+      applyDraftSnapshot(snapshot);
+      try {
+        localStorage.setItem(sessionKey, JSON.stringify({ token: snapshot.token, code: snapshot.code }));
+      } catch {
+        /* storage can be unavailable */
+      }
+      setStage("test");
+    } catch (error) {
+      setResumeError(errorMessage(error));
+    } finally {
+      setDraftBusy(false);
+    }
+  }
 
   const handleSubmit = useCallback(async () => {
     if (!candidate || !level || submitRef.current) return;
@@ -153,9 +270,11 @@ export default function ExamPage() {
       setAttemptCode(id.slice(0, 8).toUpperCase());
       try {
         localStorage.removeItem(draftKey);
+        if (sessionKey) localStorage.removeItem(sessionKey);
       } catch {
         /* storage can be unavailable in private mode */
       }
+      if (draftCode) void deleteExamDraft(draftCode, candidate.email).catch(() => undefined);
       setStage("done");
     } catch (error) {
       setSubmitError(errorMessage(error));
@@ -164,7 +283,7 @@ export default function ExamPage() {
       submitRef.current = false;
       setSubmitting(false);
     }
-  }, [candidate, level, mcAnswers, listeningAnswers, writing, recording, draftKey]);
+  }, [candidate, level, mcAnswers, listeningAnswers, writing, recording, draftKey, sessionKey, draftCode]);
 
   // Time is up: submit whatever has been answered, from any active section.
   useEffect(() => {
@@ -203,12 +322,12 @@ export default function ExamPage() {
         expired={expired}
         submitting={submitting}
         submitError={submitError}
+        draftBusy={draftBusy}
+        resumeError={resumeError}
+        draftCode={draftCode}
         onRetry={() => void fetchBundle()}
-        onStart={() => {
-          if (expired) return;
-          setStartedAt((current) => current ?? Date.now());
-          setStage("test");
-        }}
+        onStart={() => void beginExam()}
+        onResume={(code, email) => void handleResume(code, email)}
         onSubmit={() => void handleSubmit()}
       />
     );
@@ -307,8 +426,12 @@ function IntroScreen({
   expired,
   submitting,
   submitError,
+  draftBusy,
+  resumeError,
+  draftCode,
   onRetry,
   onStart,
+  onResume,
   onSubmit,
 }: {
   candidate: Candidate;
@@ -320,11 +443,18 @@ function IntroScreen({
   expired: boolean;
   submitting: boolean;
   submitError: string | null;
+  draftBusy: boolean;
+  resumeError: string | null;
+  draftCode: string | null;
   onRetry: () => void;
   onStart: () => void;
+  onResume: (code: string, email: string) => void;
   onSubmit: () => void;
 }) {
   const info = LEVEL_INFO[level];
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeCode, setResumeCode] = useState("");
+  const [resumeEmail, setResumeEmail] = useState(candidate.email);
   const sections = [
     {
       icon: ListChecks,
@@ -432,6 +562,71 @@ function IntroScreen({
             <Button variant="secondary" size="lg" onClick={onRetry} icon={<RotateCcw className="size-4" />}>
               Reintentar
             </Button>
+          )}
+        </div>
+
+        {draftCode && (
+          <p className="mt-3 text-[11.5px] text-muted">
+            Tu borrador está guardado en el servidor. Código:{" "}
+            <span className="font-mono font-semibold tracking-[0.06em]">{draftCode}</span>
+          </p>
+        )}
+
+        <div className="mt-5">
+          {!resumeOpen ? (
+            <button
+              type="button"
+              onClick={() => setResumeOpen(true)}
+              className="text-[12px] font-medium text-accent-ink underline-offset-2 hover:underline"
+            >
+              ¿Empezaste en otro dispositivo? Continúa aquí
+            </button>
+          ) : (
+            <div className="card max-w-md p-4">
+              <p className="text-[12.5px] font-medium">Continuar un examen empezado</p>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted">
+                Introduce el código del borrador y el correo con el que te registraste.
+              </p>
+              {resumeError && (
+                <div className="mt-3">
+                  <Notice tone="danger">{resumeError}</Notice>
+                </div>
+              )}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <input
+                  className="field font-mono uppercase"
+                  placeholder="Código (8)"
+                  maxLength={8}
+                  value={resumeCode}
+                  onChange={(event) =>
+                    setResumeCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
+                  }
+                />
+                <input
+                  type="email"
+                  className="field"
+                  placeholder="Correo electrónico"
+                  value={resumeEmail}
+                  onChange={(event) => setResumeEmail(event.target.value)}
+                />
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  onClick={() => onResume(resumeCode, resumeEmail)}
+                  loading={draftBusy}
+                  disabled={resumeCode.length !== 8 || !resumeEmail.includes("@")}
+                >
+                  Continuar
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setResumeOpen(false)}
+                  className="text-[12px] text-muted hover:text-ink"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

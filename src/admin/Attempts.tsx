@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Download, Search, Trash2 } from "lucide-react";
 import {
   deleteAttempt,
   gradeAttempt,
-  listAttempts,
+  listAttemptsPage,
   listListening,
   listQuestions,
   signedRecordingUrl,
@@ -17,44 +17,55 @@ import { ConfirmDialog, LevelBadge, PageHeader, Panel } from "./shared";
 type StatusFilter = "all" | "submitted" | "graded";
 
 export default function Attempts() {
+  const PAGE_SIZE = 25;
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState<Level | "all">("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Attempt | null>(null);
   const [toDelete, setToDelete] = useState<Attempt | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Debounce typing so one request runs per pause, not per keystroke.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(query), 350);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [level, status, search]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setAttempts(await listAttempts());
+      const result = await listAttemptsPage({
+        level,
+        status,
+        search,
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      setAttempts(result.rows);
+      setTotal(result.total);
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [level, status, search, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return attempts.filter((attempt) => {
-      if (level !== "all" && attempt.level !== level) return false;
-      if (status !== "all" && attempt.status !== status) return false;
-      if (!needle) return true;
-      return (
-        attempt.full_name.toLowerCase().includes(needle) ||
-        attempt.email.toLowerCase().includes(needle)
-      );
-    });
-  }, [attempts, level, status, query]);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   async function handleDelete() {
     if (!toDelete) return;
@@ -62,8 +73,11 @@ export default function Attempts() {
     try {
       await deleteAttempt(toDelete.id);
       setAttempts((prev) => prev.filter((item) => item.id !== toDelete.id));
+      setTotal((value) => Math.max(0, value - 1));
       if (selected?.id === toDelete.id) setSelected(null);
       setToDelete(null);
+      if (attempts.length === 1 && page > 1) setPage((value) => value - 1);
+      else void load();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -83,7 +97,7 @@ export default function Attempts() {
         description="Adayların gönderdiği sınavları incele, dinleme–yazma–konuşma puanlarını gir."
         action={
           <span className="rounded-xl border border-line bg-white px-3 py-1.5 text-[12px] text-muted">
-            {filtered.length} kayıt
+            {total} kayıt
           </span>
         }
       />
@@ -131,7 +145,7 @@ export default function Attempts() {
         <div className="flex justify-center py-20 text-muted">
           <Spinner className="size-5" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : attempts.length === 0 ? (
         <EmptyState
           title="Kayıt bulunamadı"
           description="Filtreleri değiştir ya da adayların sınav tamamlamasını bekle."
@@ -148,7 +162,7 @@ export default function Attempts() {
             <span />
           </div>
           <ul className="divide-y divide-[#f1f1f4]">
-            {filtered.map((attempt) => {
+            {attempts.map((attempt) => {
               const percent =
                 attempt.mc_total && attempt.mc_total > 0
                   ? Math.round(((attempt.mc_correct ?? 0) / attempt.mc_total) * 100)
@@ -204,6 +218,30 @@ export default function Attempts() {
             })}
           </ul>
         </Panel>
+      )}
+
+      {!loading && total > PAGE_SIZE && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[11.5px] text-muted">
+            Sayfa {page} / {pageCount} · {total} kayıt
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              Önceki
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={page >= pageCount || loading}
+              onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+            >
+              Sonraki
+            </Button>
+          </div>
+        </div>
       )}
 
       {selected && (
