@@ -8,17 +8,17 @@ import { cn } from "../lib/utils";
 const FEATURES = [
   {
     icon: ListChecks,
-    title: "Comprensión",
+    title: "Vocabulario y Gramática",
     text: "50 preguntas de gramática, vocabulario y uso.",
   },
   {
     icon: Headphones,
-    title: "Audición",
+    title: "Comprensión Auditiva",
     text: "Escucha grabaciones y transcribe lo que oyes.",
   },
   {
     icon: PenLine,
-    title: "Escritura",
+    title: "Expresión Escrita",
     text: "Una composición sobre un tema propuesto.",
   },
   {
@@ -87,8 +87,8 @@ export default function Welcome() {
           </h1>
 
           <p className="mt-6 max-w-lg text-[16px] leading-relaxed text-muted">
-            Elige tu nivel y completa las cuatro secciones del examen: comprensión, audición,
-            escritura y expresión oral. Tómate tu tiempo, no hay prisa.
+            Elige tu nivel y completa las cuatro secciones del examen: vocabulario y gramática,
+            comprensión auditiva, expresión escrita y expresión oral. Tómate tu tiempo, no hay prisa.
           </p>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-2">

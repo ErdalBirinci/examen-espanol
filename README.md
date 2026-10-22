@@ -119,9 +119,9 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 ## 5. Sınav akışı
 
 1. Aday ad, soyad ve e-posta girer, seviyesini seçer (A1–C2).
-2. **Comprensión:** 50 çoktan seçmeli soru (seviyede kaç soru varsa o kadar gösterilir).
-3. **Audición:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
-4. **Escritura:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
+2. **Vocabulario y Gramática:** 50 çoktan seçmeli soru (seviyede kaç soru varsa o kadar gösterilir).
+3. **Comprensión Auditiva:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
+4. **Expresión Escrita:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
 5. **Expresión oral:** mikrofonla kayıt veya dosya yükleme (maks. 50 MB); önizleme ve değiştirme.
 6. Gönderimde cevaplar `attempts` tablosuna yazılır, test puanı sunucuda hesaplanır ve adaya bir
    referans kodu gösterilir. Taslak, gönderim tamamlanana kadar tarayıcıda saklanır.

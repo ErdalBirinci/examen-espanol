@@ -31,7 +31,7 @@ export default function TestStep({
       <div>
         <StepHeader
           index={1}
-          title="Comprensión"
+          title="Vocabulario y Gramática"
           description="Preguntas de gramática, vocabulario y uso de la lengua."
         />
         <SectionEmpty message="El administrador aún no ha cargado preguntas para este nivel." />
@@ -48,7 +48,7 @@ export default function TestStep({
     <div>
       <StepHeader
         index={1}
-        title="Comprensión"
+        title="Vocabulario y Gramática"
         description="Elige la opción correcta en cada pregunta. Puedes volver atrás y cambiar tus respuestas."
         aside={
           <div className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center">
@@ -166,7 +166,7 @@ export default function TestStep({
       <StepFooter
         onBack={onBack}
         onNext={onNext}
-        nextLabel="Ir a la audición"
+        nextLabel="Ir a comprensión auditiva"
         hint={`${answeredCount} de ${questions.length} respondidas`}
       />
     </div>

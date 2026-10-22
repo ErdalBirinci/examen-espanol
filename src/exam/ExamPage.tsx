@@ -246,9 +246,17 @@ function IntroScreen({
 }) {
   const info = LEVEL_INFO[level];
   const sections = [
-    { icon: ListChecks, title: "Comprensión", detail: `${bundle?.questions.length ?? "—"} preguntas` },
-    { icon: Headphones, title: "Audición", detail: `${bundle?.listening.length ?? "—"} pistas` },
-    { icon: PenLine, title: "Escritura", detail: "1 composición" },
+    {
+      icon: ListChecks,
+      title: "Vocabulario y Gramática",
+      detail: `${bundle?.questions.length ?? "—"} preguntas`,
+    },
+    {
+      icon: Headphones,
+      title: "Comprensión Auditiva",
+      detail: `${bundle?.listening.length ?? "—"} pistas`,
+    },
+    { icon: PenLine, title: "Expresión Escrita", detail: "1 composición" },
     { icon: Mic, title: "Expresión oral", detail: "1 grabación" },
   ];
 
@@ -293,7 +301,7 @@ function IntroScreen({
           <div className="mt-6">
             <Notice tone="warning">
               Este nivel todavía no tiene preguntas cargadas. Puedes continuar, pero la sección de
-              comprensión quedará vacía.
+              vocabulario y gramática quedará vacía.
             </Notice>
           </div>
         )}

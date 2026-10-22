@@ -21,7 +21,7 @@ export default function WritingStep({
       <div>
         <StepHeader
           index={3}
-          title="Escritura"
+          title="Expresión Escrita"
           description="Escribe una composición sobre el tema propuesto."
         />
         <SectionEmpty message="El administrador aún no ha definido un tema de escritura para este nivel." />
@@ -37,7 +37,7 @@ export default function WritingStep({
     <div>
       <StepHeader
         index={3}
-        title="Escritura"
+        title="Expresión Escrita"
         description="Responde con tus propias palabras. No hay respuestas correctas o incorrectas: valoramos claridad y riqueza."
         aside={
           <div className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center">
@@ -92,7 +92,7 @@ export default function WritingStep({
       <StepFooter
         onBack={onBack}
         onNext={onNext}
-        nextLabel="Ir a la expresión oral"
+        nextLabel="Ir a expresión oral"
         hint={value.trim() ? "Texto guardado" : "Aún no has escrito nada"}
       />
     </div>

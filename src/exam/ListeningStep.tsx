@@ -26,7 +26,7 @@ export default function ListeningStep({
       <div>
         <StepHeader
           index={2}
-          title="Audición"
+          title="Comprensión Auditiva"
           description="Escucha cada grabación y escribe lo que has entendido."
         />
         <SectionEmpty message="El administrador aún no ha cargado audios para este nivel." />
@@ -43,7 +43,7 @@ export default function ListeningStep({
     <div>
       <StepHeader
         index={2}
-        title="Audición"
+        title="Comprensión Auditiva"
         description="Escucha la grabación y transcribe con tus propias palabras lo que has escuchado."
         aside={
           <div className="flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-2.5 text-[12px] text-muted">
@@ -107,7 +107,7 @@ export default function ListeningStep({
             onClick={() => (isLast ? onNext() : setCurrent((index) => index + 1))}
             className="focus-ring rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink transition hover:bg-[#f2f2f5]"
           >
-            {isLast ? "Ir a escritura →" : "Siguiente pista →"}
+            {isLast ? "Ir a expresión escrita →" : "Siguiente pista →"}
           </button>
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function ListeningStep({
       <StepFooter
         onBack={onBack}
         onNext={onNext}
-        nextLabel="Ir a la escritura"
+        nextLabel="Ir a expresión escrita"
         hint={`${items.filter((entry) => (answers[entry.id] ?? "").trim().length > 0).length} de ${items.length} pistas transcritas`}
       />
     </div>

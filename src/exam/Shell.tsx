@@ -3,7 +3,12 @@ import { Check } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { Level } from "../lib/types";
 
-export const SECTION_LABELS = ["Comprensión", "Audición", "Escritura", "Oral"];
+export const SECTION_LABELS = [
+  "Vocabulario y Gramática",
+  "Comprensión Auditiva",
+  "Expresión Escrita",
+  "Oral",
+];
 
 export function ExamShell({
   level,
@@ -28,7 +33,7 @@ export function ExamShell({
             </span>
           </div>
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Progreso del examen">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Progreso del examen">
             {SECTION_LABELS.map((label, index) => {
               const done = index < activeIndex;
               const active = index === activeIndex;
@@ -36,7 +41,7 @@ export function ExamShell({
                 <div key={label} className="flex items-center gap-1">
                   <span
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium transition",
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium whitespace-nowrap transition",
                       active && "bg-ink text-white",
                       done && "text-success",
                       !active && !done && "text-faint",
@@ -54,7 +59,7 @@ export function ExamShell({
             })}
           </nav>
 
-          <span className="text-[11.5px] font-medium text-muted md:hidden">
+          <span className="text-[11.5px] font-medium text-muted lg:hidden">
             {Math.min(activeIndex + 1, SECTION_LABELS.length)} / {SECTION_LABELS.length}
           </span>
         </div>
