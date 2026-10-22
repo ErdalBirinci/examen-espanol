@@ -371,6 +371,14 @@ export async function saveAssignment(input: {
   if (error) fail(`Sınav atanamadı: ${error.message}`);
 }
 
+export async function setAssignmentResultsVisible(id: string, visible: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("exam_assignments")
+    .update({ results_visible: visible })
+    .eq("id", id);
+  if (error) fail(`Sonuç görünürlüğü güncellenemedi: ${error.message}`);
+}
+
 export async function deleteAssignment(id: string): Promise<void> {
   const { error } = await supabase.from("exam_assignments").delete().eq("id", id);
   if (error) fail(`Atama silinemedi: ${error.message}`);

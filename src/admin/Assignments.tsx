@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import {
   deleteAssignment,
   listAllAssignments,
   saveAssignment,
+  setAssignmentResultsVisible,
   type AdminAssignment,
 } from "../lib/api";
 import { LEVELS, type Level } from "../lib/types";
@@ -18,6 +19,7 @@ export default function Assignments() {
   const [saving, setSaving] = useState(false);
   const [toDelete, setToDelete] = useState<AdminAssignment | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [visibilityBusy, setVisibilityBusy] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: "",
     level: "A1" as Level,
@@ -75,6 +77,22 @@ export default function Assignments() {
       setError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleResults(row: AdminAssignment) {
+    const next = !row.results_visible;
+    setVisibilityBusy(row.id);
+    setError(null);
+    try {
+      await setAssignmentResultsVisible(row.id, next);
+      setRows((prev) =>
+        prev.map((item) => (item.id === row.id ? { ...item, results_visible: next } : item)),
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setVisibilityBusy(null);
     }
   }
 
@@ -253,7 +271,25 @@ export default function Assignments() {
                       : "Bekliyor"}
                   </Badge>
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void toggleResults(row)}
+                    disabled={visibilityBusy === row.id}
+                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#eef4fd] hover:text-accent-ink disabled:opacity-40"
+                    aria-label={
+                      row.results_visible ? "Sonuçları adaya gizle" : "Sonuçları adaya göster"
+                    }
+                    title={
+                      row.results_visible ? "Sonuçları adaya gizle" : "Sonuçları adaya göster"
+                    }
+                  >
+                    {row.results_visible ? (
+                      <Eye className="size-3.5" />
+                    ) : (
+                      <EyeOff className="size-3.5" />
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setToDelete(row)}
@@ -269,10 +305,11 @@ export default function Assignments() {
         </Panel>
       )}
 
-      {rows.some((row) => row.due_at) && (
+      {rows.length > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-faint">
           <CalendarClock className="size-3.5" />
-          Son tarihi geçen atamalar aday tarafından gönderilemez.
+          Son tarihi geçen atamalar aday tarafından gönderilemez. Göz simgesiyle sonuçların adaya
+          görünürlüğünü sonradan açıp kapatabilirsin.
         </p>
       )}
 

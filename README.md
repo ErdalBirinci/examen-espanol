@@ -129,8 +129,11 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
   (`check_candidate_email`).
 - Kayıt sonrası aday **/cuenta** panelinde yalnızca kendisine atanan sınavları görür; başka bir
   atamanın bağlantısını açsa bile sunucu erişimi reddeder (RLS + `candidate_assignments`).
-- Yönetici **Aday Sınavları** sayfasından e-posta, seviye, başlık, not ve son tarih girerek atama
-  yapar; atamayı silebilir. Aday sınavı gönderdikten sonra tekrar giremez, sonuç bağlantısı görünür.
+- Yönetici **Aday Sınavları** sayfasından e-posta, seviye, başlık, not, son tarih, sınav süresi ve
+  sonuç görünürlüğü girerek atama yapar; atamayı silebilir. Süre boş bırakılırsa seviyenin varsayılan
+  süresi (`exam_settings`) kullanılır. Sonuçlar gizliyken aday panelinde "Resultados aún no publicados"
+  görünür ve puanlar sorguda gizlenir; göz simgesiyle sonuçlar sonradan yayınlanabilir. Aday sınavı
+  gönderdikten sonra tekrar giremez.
 - Gönderim `submit_attempt` RPC'sinde atama kimliği ister; atama-e-posta ve atama-seviye eşleşmesi,
   son tarih ve tekrar gönderim sunucuda kontrol edilir. `attempts.assignment_id` benzersizdir.
 - Supabase Auth → Sign In / Providers bölümünde **Confirm email** kapatılmıştır; aksi halde adaylar
@@ -145,9 +148,9 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 3. **Comprensión Auditiva:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
 4. **Expresión Escrita:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
 5. **Expresión oral:** mikrofonla kayıt veya dosya yükleme (maks. 50 MB); önizleme ve değiştirme.
-6. **Süre:** seviye başına toplam süre (`exam_settings`, varsayılan 45–90 dk) panelden ayarlanır. Süre
-   üstteki sayaçta görünür; son 5 dakikada sarı, son 1 dakikada kırmızı olur. Süre bitince sınav
-   bulunulan bölümden otomatik gönderilir.
+6. **Süre:** atamada süre girildiyse o süre, girilmediyse seviyenin toplam süresi (`exam_settings`,
+   varsayılan 45–90 dk) kullanılır. Süre üstteki sayaçta görünür; son 5 dakikada sarı, son 1 dakikada
+   kırmızı olur. Süre bitince sınav bulunulan bölümden otomatik gönderilir.
 7. **Özet ekranı:** gönderimden önce dört bölümün durumu ve eksikler listelenir; aday onaylayarak gönderir.
 8. Gönderim `submit_attempt` RPC'siyle yapılır: sunucu isim/e-posta/biçim doğrular, aynı e-posta ile
    2 dakika içinde ikinci gönderimi engeller ve test puanını hesaplar. Adaya bir referans kodu gösterilir.
