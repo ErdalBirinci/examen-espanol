@@ -23,7 +23,9 @@ puanlama `attempts` tablosundaki `score_attempt` trigger'ı ile sunucuda hesapla
 ## 1. Supabase kurulumu
 
 1. [supabase.com](https://supabase.com) üzerinde ücretsiz bir proje oluştur.
-2. **SQL Editor** → [`supabase/schema.sql`](supabase/schema.sql) dosyasının tamamını çalıştır.
+2. **SQL Editor** → [`supabase/schema.sql`](supabase/schema.sql) dosyasının tamamını çalıştır. Ardından
+   `supabase/migrations/` altındaki dosyaları sırayla uygula (süre ayarları, sunucu taraflı gönderim,
+   sonuç sorgulama ve dinleme transkripti). Hepsi idempotent: tekrar çalıştırmak güvenli.
 3. **Authentication → Users → Add user** ile yönetici hesabını oluştur:
    - E-posta: `<kullanıcı_adı>@examen.local` (örn. `yonetici@examen.local`)
    - Şifre: kendi belirlediğin güçlü şifre
@@ -75,10 +77,10 @@ böylece `/adminpanel` gibi adresler doğrudan açılır.
 
 | Bölüm | Ne yapar |
 | --- | --- |
-| Genel Bakış | Toplam sınav, aylık hacim, bekleyen değerlendirme, ortalama test başarısı |
-| Sınav Sonuçları | Aday cevapları, dinleme transkriptleri, yazma metni, ses kaydı oynatma; dinleme/yazma/konuşma puanlama (0–100) ve not |
+| Genel Bakış | Toplam sınav, aylık hacim, bekleyen değerlendirme, ortalama test başarısı, içerik tamlık matrisi, seviye süreleri ve JSON yedek |
+| Sınav Sonuçları | Aday cevapları, dinleme transkriptleri, yazma metni, ses kaydı oynatma; dinleme/yazma/konuşma puanlama (0–100), ağırlıklı toplam ve not |
 | Test Soruları | Seviye bazında çoktan seçmeli soru CRUD (4 seçenek, doğru cevap, sıra) |
-| Dinleme | Ses dosyası yükleme (maks. 50 MB), başlık, dinleme hakkı, sıra |
+| Dinleme | Ses dosyası yükleme (maks. 50 MB), başlık, dinleme hakkı, sıra, değerlendirme transkripti |
 | Yazma | Seviye başına konu metni ve minimum kelime |
 | Konuşma | Seviye başına konu, yönlendirme, süreler |
 
@@ -127,16 +129,26 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 3. **Comprensión Auditiva:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
 4. **Expresión Escrita:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
 5. **Expresión oral:** mikrofonla kayıt veya dosya yükleme (maks. 50 MB); önizleme ve değiştirme.
-6. Gönderimde cevaplar `attempts` tablosuna yazılır, test puanı sunucuda hesaplanır ve adaya bir
-   referans kodu gösterilir. Taslak, gönderim tamamlanana kadar tarayıcıda saklanır.
+6. **Süre:** seviye başına toplam süre (`exam_settings`, varsayılan 45–90 dk) panelden ayarlanır. Süre
+   üstteki sayaçta görünür; son 5 dakikada sarı, son 1 dakikada kırmızı olur. Süre bitince sınav
+   bulunulan bölümden otomatik gönderilir.
+7. **Özet ekranı:** gönderimden önce dört bölümün durumu ve eksikler listelenir; aday onaylayarak gönderir.
+8. Gönderim `submit_attempt` RPC'siyle yapılır: sunucu isim/e-posta/biçim doğrular, aynı e-posta ile
+   2 dakika içinde ikinci gönderimi engeller ve test puanını hesaplar. Adaya bir referans kodu gösterilir.
+   Taslak, gönderim tamamlanana kadar tarayıcıda saklanır.
+9. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
+   görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
 
 ## 6. Notlar ve sınırlar
 
 - Dinleme sesleri herkese açık okunur (aday dinleyebilsin diye); konuşma kayıtları **özel** kovadadır,
-  panelde imzalı (geçici) bağlantı ile açılır.
-- `attempts` tablosuna anonim ekleme izni verilmiştir (aday kaydı için). Okuma/güncelleme/silme
-  yalnızca yöneticidedir.
+  panelde imzalı (geçici) bağlantı ile açılır. Dinleme hakkı (`max_plays`) istemcide sayılır; dosya
+  doğrudan indirilerek sınırsız dinlenebilir.
+- `attempts` tablosuna anonim yazma kapalıdır. Aday kaydı yalnızca `submit_attempt` RPC'si üzerinden,
+  doğrulama ve hız sınırıyla oluşur; okuma/güncelleme/silme yalnızca yöneticidedir.
 - 50 MB sınırı hem istemcide hem Supabase Storage kova ayarında uygulanır.
+- Yedek: **Genel Bakış → Yedek indir** tüm tabloları JSON olarak indirir (soru, dinleme, yazma,
+  konuşma, sınavlar, süre ayarları). Geri yükleme henüz otomatik değildir.
 - Ücretsiz Supabase planı 1 GB dosya depolama ve 500 MB veritabanı içerir; yoğun kullanımda planı
   yükseltmek gerekebilir.
 
@@ -151,4 +163,5 @@ src/
 supabase/
   schema.sql   Tablolar, RLS, storage kovaları, puanlama
   seed.sql     Örnek içerik
+  migrations/  Sonradan eklenen şema ve RPC'ler (sırayla uygula)
 ```

@@ -1,24 +1,80 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, Clock, Sparkles, Users } from "lucide-react";
-import { listAttempts } from "../lib/api";
-import type { Attempt } from "../lib/types";
+import {
+  ArrowUpRight,
+  ClipboardList,
+  Clock,
+  Download,
+  Settings2,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import {
+  contentStats,
+  exportBackup,
+  listAttempts,
+  listExamSettings,
+  saveExamSettings,
+} from "../lib/api";
+import type { Attempt, ContentStats, ExamSettings } from "../lib/types";
 import { LEVELS } from "../lib/types";
-import { formatDate } from "../lib/utils";
-import { Badge, EmptyState, Notice, Spinner } from "../components/ui";
+import { errorMessage, formatDate } from "../lib/utils";
+import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { LevelBadge, PageHeader, Panel } from "./shared";
 
 export default function Overview() {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [content, setContent] = useState<ContentStats[]>([]);
+  const [settings, setSettings] = useState<ExamSettings[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   useEffect(() => {
-    listAttempts()
-      .then(setAttempts)
+    Promise.all([listAttempts(), contentStats(), listExamSettings()])
+      .then(([rows, stats, config]) => {
+        setAttempts(rows);
+        setContent(stats);
+        setSettings(config);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function downloadBackup() {
+    setBackupBusy(true);
+    try {
+      const json = await exportBackup();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `examen-espanol-yedek-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function persistSettings() {
+    setSavingSettings(true);
+    setSettingsError(null);
+    try {
+      await saveExamSettings(settings);
+      setSettings(await listExamSettings());
+      setSettingsOpen(false);
+    } catch (err) {
+      setSettingsError(errorMessage(err));
+    } finally {
+      setSavingSettings(false);
+    }
+  }
 
   const stats = useMemo(() => {
     const monthStart = new Date();
@@ -64,13 +120,30 @@ export default function Overview() {
         title="Genel Bakış"
         description="Sınavlar, adaylar ve değerlendirme durumunun özeti."
         action={
-          <Link
-            to="/adminpanel/sonuclar"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3.5 py-2 text-[12.5px] font-medium text-ink transition hover:border-[#cfcfd6]"
-          >
-            Tüm sonuçlar
-            <ArrowUpRight className="size-3.5" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setSettingsOpen(true)}
+              icon={<Settings2 className="size-3.5" />}
+            >
+              Sınav süreleri
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void downloadBackup()}
+              loading={backupBusy}
+              icon={<Download className="size-3.5" />}
+            >
+              Yedek indir
+            </Button>
+            <Link
+              to="/adminpanel/sonuclar"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-white px-3.5 py-2 text-[12.5px] font-medium text-ink transition hover:border-[#cfcfd6]"
+            >
+              Tüm sonuçlar
+              <ArrowUpRight className="size-3.5" />
+            </Link>
+          </div>
         }
       />
 
@@ -161,6 +234,118 @@ export default function Overview() {
           </div>
         </Panel>
       </div>
+
+      <Panel className="mt-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+          <div>
+            <h2 className="text-[13.5px] font-semibold">İçerik tamlık matrisi</h2>
+            <p className="mt-0.5 text-[11.5px] text-muted">
+              Hedef: en az 10 soru, 1 dinleme, 1 yazma ve 1 konuşma konusu.
+            </p>
+          </div>
+          <span className="text-[11.5px] text-faint">{content.length} seviye</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left">
+            <thead>
+              <tr className="border-b border-line bg-[#fcfcfe] text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase">
+                <th className="px-5 py-2">Seviye</th>
+                <th className="px-3 py-2">Soru</th>
+                <th className="px-3 py-2">Dinleme</th>
+                <th className="px-3 py-2">Yazma</th>
+                <th className="px-3 py-2">Konuşma</th>
+                <th className="px-5 py-2 text-right">Durum</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#f1f1f4]">
+              {LEVELS.map((level) => {
+                const row = content.find((entry) => entry.level === level);
+                const cells = [
+                  { value: row?.questions ?? 0, target: 10 },
+                  { value: row?.listening ?? 0, target: 1 },
+                  { value: row?.writing ?? 0, target: 1 },
+                  { value: row?.speaking ?? 0, target: 1 },
+                ];
+                const complete = cells.every((cell) => cell.value >= cell.target);
+                return (
+                  <tr key={level}>
+                    <td className="px-5 py-2.5">
+                      <LevelBadge level={level} />
+                    </td>
+                    {cells.map((cell, index) => (
+                      <td key={index} className="px-3 py-2.5">
+                        <span
+                          className={
+                            cell.value >= cell.target
+                              ? "text-[12.5px] font-medium text-success tabular-nums"
+                              : "text-[12.5px] font-medium text-warning tabular-nums"
+                          }
+                        >
+                          {cell.value}
+                        </span>
+                        <span className="text-[11px] text-faint"> / {cell.target}</span>
+                      </td>
+                    ))}
+                    <td className="px-5 py-2.5 text-right">
+                      <Badge tone={complete ? "success" : "warning"}>
+                        {complete ? "Hazır" : "Eksik"}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Modal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title="Sınav süreleri"
+        description="Her seviye için adayın toplam süresi (dakika). Süre dolunca sınav otomatik gönderilir."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button onClick={() => void persistSettings()} loading={savingSettings}>
+              Kaydet
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {settingsError && <Notice tone="danger">{settingsError}</Notice>}
+          <div className="grid gap-3 sm:grid-cols-3">
+            {LEVELS.map((level) => {
+              const row = settings.find((entry) => entry.level === level);
+              return (
+                <Field key={level} label={level} hint="10–240 dk" htmlFor={`duration-${level}`}>
+                  <input
+                    id={`duration-${level}`}
+                    type="number"
+                    min={10}
+                    max={240}
+                    className="field"
+                    value={row?.duration_minutes ?? 60}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      setSettings((prev) => {
+                        const next = prev.filter((entry) => entry.level !== level);
+                        return [
+                          ...next,
+                          { level, duration_minutes: Number.isFinite(value) ? value : 60 },
+                        ].sort((a, b) => a.level.localeCompare(b.level));
+                      });
+                    }}
+                  />
+                </Field>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

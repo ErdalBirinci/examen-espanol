@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Check } from "lucide-react";
-import { cn } from "../lib/utils";
+import { Check, Clock3 } from "lucide-react";
+import { cn, formatSeconds } from "../lib/utils";
 import type { Level } from "../lib/types";
 
 export const SECTION_LABELS = [
@@ -13,10 +13,12 @@ export const SECTION_LABELS = [
 export function ExamShell({
   level,
   activeIndex,
+  remainingSeconds,
   children,
 }: {
   level: Level;
   activeIndex: number;
+  remainingSeconds?: number;
   children: ReactNode;
 }) {
   return (
@@ -59,14 +61,39 @@ export function ExamShell({
             })}
           </nav>
 
-          <span className="text-[11.5px] font-medium text-muted lg:hidden">
-            {Math.min(activeIndex + 1, SECTION_LABELS.length)} / {SECTION_LABELS.length}
-          </span>
+          <div className="flex items-center gap-2.5">
+            {remainingSeconds !== undefined && <ExamTimer seconds={remainingSeconds} />}
+            <span className="text-[11.5px] font-medium text-muted lg:hidden">
+              {Math.min(activeIndex + 1, SECTION_LABELS.length)} / {SECTION_LABELS.length}
+            </span>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-5 py-8 pb-24 sm:px-8 sm:py-12">{children}</main>
     </div>
+  );
+}
+
+function ExamTimer({ seconds }: { seconds: number }) {
+  const critical = seconds <= 60;
+  const warning = seconds <= 300;
+  return (
+    <span
+      role="timer"
+      aria-label={`Tiempo restante: ${formatSeconds(seconds)}`}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold tabular-nums transition-colors",
+        critical
+          ? "border-[#fbdada] bg-[#fdf0f0] text-danger"
+          : warning
+            ? "border-[#f4e6c8] bg-[#fdf8ec] text-warning"
+            : "border-line bg-white text-muted",
+      )}
+    >
+      <Clock3 className={cn("size-3.5", critical && "animate-pulse")} />
+      {formatSeconds(seconds)}
+    </span>
   );
 }
 

@@ -10,6 +10,7 @@ import {
 } from "../lib/api";
 import { LEVELS, type Attempt, type Level, type ListeningItem, type QuestionAdmin } from "../lib/types";
 import { cn, errorMessage, formatDate, formatSeconds } from "../lib/utils";
+import { attemptTotal } from "../lib/scoring";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelBadge, PageHeader, Panel } from "./shared";
 
@@ -137,10 +138,11 @@ export default function Attempts() {
         />
       ) : (
         <Panel className="overflow-hidden">
-          <div className="hidden grid-cols-[1.6fr_0.6fr_0.8fr_0.9fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
+          <div className="hidden grid-cols-[1.6fr_0.6fr_0.7fr_0.7fr_0.9fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
             <span>Aday</span>
             <span>Seviye</span>
             <span>Test</span>
+            <span>Genel</span>
             <span>Tarih</span>
             <span>Durum</span>
             <span />
@@ -151,10 +153,11 @@ export default function Attempts() {
                 attempt.mc_total && attempt.mc_total > 0
                   ? Math.round(((attempt.mc_correct ?? 0) / attempt.mc_total) * 100)
                   : null;
+              const total = attemptTotal(attempt);
               return (
                 <li
                   key={attempt.id}
-                  className="grid cursor-pointer grid-cols-2 items-center gap-2 px-4 py-3 transition hover:bg-[#fcfcfe] md:grid-cols-[1.6fr_0.6fr_0.8fr_0.9fr_0.8fr_auto]"
+                  className="grid cursor-pointer grid-cols-2 items-center gap-2 px-4 py-3 transition hover:bg-[#fcfcfe] md:grid-cols-[1.6fr_0.6fr_0.7fr_0.7fr_0.9fr_0.8fr_auto]"
                   onClick={() => setSelected(attempt)}
                 >
                   <div className="col-span-2 min-w-0 md:col-span-1">
@@ -173,6 +176,9 @@ export default function Attempts() {
                         <span className="ml-1 text-[11px] text-faint">%{percent}</span>
                       </span>
                     )}
+                  </div>
+                  <div className="text-[12px] font-medium tabular-nums">
+                    {total === null ? <span className="font-normal text-faint">—</span> : total}
                   </div>
                   <div className="text-[11.5px] text-muted">{formatDate(attempt.created_at)}</div>
                   <div>
@@ -316,7 +322,7 @@ function AttemptDetail({
       <div className="space-y-4">
         {error && <Notice tone="danger">{error}</Notice>}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ScoreTile label="Test" value={percent === null ? "—" : `%${percent}`} detail={`${attempt.mc_correct ?? 0} / ${attempt.mc_total ?? 0} doğru`} />
           <ScoreTile
             label="Dinleme"
@@ -328,7 +334,19 @@ function AttemptDetail({
             value={attempt.writing_score !== null ? String(attempt.writing_score) : "—"}
             detail={attempt.writing_score !== null ? "puanlandı" : "bekliyor"}
           />
+          <ScoreTile
+            label="Konuşma"
+            value={attempt.speaking_score !== null ? String(attempt.speaking_score) : "—"}
+            detail={attempt.speaking_score !== null ? "puanlandı" : "bekliyor"}
+          />
         </div>
+
+        <p className="text-right text-[11.5px] text-muted">
+          Ağırlıklı toplam:{" "}
+          <span className="font-semibold text-ink tabular-nums">{attemptTotal(attempt) ?? "—"}</span>{" "}
+          / 100{" "}
+          <span className="text-faint">(%40 test · %20 dinleme · %20 yazma · %20 konuşma)</span>
+        </p>
 
         <Card title="Test cevapları" action={
           <button
@@ -399,6 +417,14 @@ function AttemptDetail({
                       <span className="text-faint">Boş bırakıldı</span>
                     )}
                   </p>
+                  {item.transcript && (
+                    <details className="mt-1 text-[11.5px] text-muted">
+                      <summary className="cursor-pointer text-faint transition hover:text-ink">
+                        Referans transkript
+                      </summary>
+                      <p className="mt-1 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
+                    </details>
+                  )}
                 </div>
               ))}
             </div>

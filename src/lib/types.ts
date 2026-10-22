@@ -68,6 +68,7 @@ export interface ListeningItem {
   audio_path: string;
   max_plays: number;
   position: number;
+  transcript: string | null;
   created_at?: string;
 }
 
@@ -112,15 +113,43 @@ export interface Attempt {
   submitted_at: string;
 }
 
+export interface ExamSettings {
+  level: Level;
+  duration_minutes: number;
+}
+
 export interface ExamBundle {
   questions: QuestionPublic[];
   listening: ListeningItem[];
   writing: WritingPrompt | null;
   speaking: SpeakingPrompt | null;
+  settings: ExamSettings;
+}
+
+export interface ContentStats {
+  level: Level;
+  questions: number;
+  listening: number;
+  writing: number;
+  speaking: number;
 }
 
 export interface Candidate {
   firstName: string;
   lastName: string;
   email: string;
+}
+
+export interface AttemptResult {
+  reference: string;
+  full_name: string;
+  level: Level;
+  status: AttemptStatus;
+  submitted_at: string;
+  mc_correct: number | null;
+  mc_total: number | null;
+  listening_score: number | null;
+  writing_score: number | null;
+  speaking_score: number | null;
+  total_score: number | null;
 }

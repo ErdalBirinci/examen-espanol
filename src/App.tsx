@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import Welcome from "./exam/Welcome";
 import ExamPage from "./exam/ExamPage";
+import ResultPage from "./exam/ResultPage";
 import AdminLogin from "./admin/AdminLogin";
 import AdminGate from "./admin/AdminGate";
 import Overview from "./admin/Overview";
@@ -25,6 +26,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Welcome />} />
         <Route path="/examen/:level" element={<ExamPage />} />
+        <Route path="/resultado" element={<ResultPage />} />
 
         <Route path="/adminpanel">
           <Route index element={<AdminLogin />} />

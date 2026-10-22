@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   CheckCircle2,
+  Clock3,
   Headphones,
   ListChecks,
   Mic,
@@ -15,11 +16,12 @@ import TestStep from "./TestStep";
 import ListeningStep from "./ListeningStep";
 import WritingStep from "./WritingStep";
 import SpeakingStep, { type RecordingPayload } from "./SpeakingStep";
+import ReviewStep from "./ReviewStep";
 import { loadExamBundle, submitAttempt, uploadSpeakingRecording } from "../lib/api";
 import { LEVELS, LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
-import { errorMessage } from "../lib/utils";
+import { errorMessage, formatSeconds, wordCount } from "../lib/utils";
 
-type Stage = "intro" | "test" | "listening" | "writing" | "speaking" | "done";
+type Stage = "intro" | "test" | "listening" | "writing" | "speaking" | "review" | "done";
 
 const CANDIDATE_KEY = "examen-espanol:candidate";
 
@@ -27,6 +29,7 @@ interface Draft {
   mcAnswers: Record<string, number>;
   listeningAnswers: Record<string, string>;
   writing: string;
+  startedAt: number | null;
 }
 
 function readCandidate(): Candidate | null {
@@ -47,7 +50,7 @@ export default function ExamPage() {
     ? (levelParam as Level)
     : null;
 
-  const candidate = useMemo(readCandidate, [level]);
+  const candidate = useMemo(readCandidate, []);
   const draftKey = candidate && level ? `examen-espanol:draft:${candidate.email}:${level}` : "";
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
@@ -58,10 +61,15 @@ export default function ExamPage() {
   const [mcAnswers, setMcAnswers] = useState<Record<string, number>>({});
   const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
   const [writing, setWriting] = useState("");
+  const [recording, setRecording] = useState<RecordingPayload | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attemptCode, setAttemptCode] = useState<string | null>(null);
+
+  const submitRef = useRef(false);
 
   const fetchBundle = useCallback(async () => {
     if (!level) return;
@@ -91,6 +99,7 @@ export default function ExamPage() {
         if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
         if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
         if (typeof draft.writing === "string") setWriting(draft.writing);
+        if (typeof draft.startedAt === "number") setStartedAt(draft.startedAt);
       }
     } catch {
       /* ignore corrupt drafts */
@@ -102,28 +111,35 @@ export default function ExamPage() {
     // Never write before the restore above has run, otherwise the empty initial
     // state would wipe the saved draft on every reload.
     if (!draftKey || !hydrated || stage === "done") return;
-    const draft: Draft = { mcAnswers, listeningAnswers, writing };
+    const draft: Draft = { mcAnswers, listeningAnswers, writing, startedAt };
     localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, stage]);
+  }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, startedAt, stage]);
+
+  const durationMinutes = bundle?.settings.duration_minutes ?? 60;
+  const endsAt = startedAt ? startedAt + durationMinutes * 60_000 : null;
+  const remainingSeconds = endsAt ? Math.max(0, Math.ceil((endsAt - now) / 1000)) : null;
+  const expired = remainingSeconds !== null && remainingSeconds <= 0;
+
+  useEffect(() => {
+    if (!startedAt || stage === "done") return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt, stage]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stage]);
 
-  if (!level) return <Navigate to="/" replace />;
-  if (!candidate) return <Navigate to="/" replace />;
-
-  const activeIndex =
-    stage === "test" ? 0 : stage === "listening" ? 1 : stage === "writing" ? 2 : stage === "speaking" ? 3 : 0;
-
-  async function handleSubmit(payload: RecordingPayload) {
-    if (!candidate || !level) return;
+  const handleSubmit = useCallback(async () => {
+    if (!candidate || !level || submitRef.current) return;
+    submitRef.current = true;
     setSubmitting(true);
     setSubmitError(null);
     try {
       let speakingPath: string | null = null;
-      if (payload.blob) {
-        speakingPath = await uploadSpeakingRecording(payload.blob, payload.extension);
+      if (recording) {
+        speakingPath = await uploadSpeakingRecording(recording.blob, recording.extension);
       }
       const id = await submitAttempt({
         candidate,
@@ -132,17 +148,44 @@ export default function ExamPage() {
         listeningAnswers,
         writingText: writing,
         speakingPath,
-        speakingDuration: payload.duration,
+        speakingDuration: recording?.duration ?? null,
       });
       setAttemptCode(id.slice(0, 8).toUpperCase());
-      localStorage.removeItem(draftKey);
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        /* storage can be unavailable in private mode */
+      }
       setStage("done");
     } catch (error) {
       setSubmitError(errorMessage(error));
+      setStage((current) => (current === "speaking" ? "review" : current));
     } finally {
+      submitRef.current = false;
       setSubmitting(false);
     }
-  }
+  }, [candidate, level, mcAnswers, listeningAnswers, writing, recording, draftKey]);
+
+  // Time is up: submit whatever has been answered, from any active section.
+  useEffect(() => {
+    if (stage === "intro" || stage === "done") return;
+    if (!expired) return;
+    void handleSubmit();
+  }, [expired, stage, handleSubmit]);
+
+  if (!level) return <Navigate to="/" replace />;
+  if (!candidate) return <Navigate to="/" replace />;
+
+  const activeIndex =
+    stage === "test"
+      ? 0
+      : stage === "listening"
+        ? 1
+        : stage === "writing"
+          ? 2
+          : stage === "speaking" || stage === "review"
+            ? 3
+            : 0;
 
   if (stage === "done") {
     return <CompletionScreen code={attemptCode} level={level} candidate={candidate} />;
@@ -156,14 +199,23 @@ export default function ExamPage() {
         bundle={bundle}
         loading={loading}
         error={loadError}
+        remainingSeconds={remainingSeconds}
+        expired={expired}
+        submitting={submitting}
+        submitError={submitError}
         onRetry={() => void fetchBundle()}
-        onStart={() => setStage("test")}
+        onStart={() => {
+          if (expired) return;
+          setStartedAt((current) => current ?? Date.now());
+          setStage("test");
+        }}
+        onSubmit={() => void handleSubmit()}
       />
     );
   }
 
   return (
-    <ExamShell level={level} activeIndex={activeIndex}>
+    <ExamShell level={level} activeIndex={activeIndex} remainingSeconds={remainingSeconds ?? undefined}>
       {loading && !bundle ? (
         <div className="flex flex-col items-center gap-3 py-24 text-muted">
           <Spinner className="size-6" />
@@ -215,10 +267,28 @@ export default function ExamPage() {
           {stage === "speaking" && (
             <SpeakingStep
               prompt={bundle.speaking}
-              submitting={submitting}
-              submitError={submitError}
-              onSubmit={(payload) => void handleSubmit(payload)}
+              value={recording}
+              onChange={setRecording}
+              onContinue={() => setStage("review")}
               onBack={() => setStage("writing")}
+            />
+          )}
+
+          {stage === "review" && (
+            <ReviewStep
+              candidate={candidate}
+              level={level}
+              answered={bundle.questions.filter((question) => mcAnswers[question.id] !== undefined).length}
+              totalQuestions={bundle.questions.length}
+              transcribed={bundle.listening.filter((item) => (listeningAnswers[item.id] ?? "").trim()).length}
+              totalListening={bundle.listening.length}
+              writingWords={wordCount(writing)}
+              minWords={bundle.writing?.min_words ?? null}
+              hasRecording={Boolean(recording)}
+              submitting={submitting}
+              error={submitError}
+              onSubmit={() => void handleSubmit()}
+              onBack={() => setStage("speaking")}
             />
           )}
         </>
@@ -233,16 +303,26 @@ function IntroScreen({
   bundle,
   loading,
   error,
+  remainingSeconds,
+  expired,
+  submitting,
+  submitError,
   onRetry,
   onStart,
+  onSubmit,
 }: {
   candidate: Candidate;
   level: Level;
   bundle: ExamBundle | null;
   loading: boolean;
   error: string | null;
+  remainingSeconds: number | null;
+  expired: boolean;
+  submitting: boolean;
+  submitError: string | null;
   onRetry: () => void;
   onStart: () => void;
+  onSubmit: () => void;
 }) {
   const info = LEVEL_INFO[level];
   const sections = [
@@ -263,9 +343,23 @@ function IntroScreen({
   return (
     <ExamShell level={level} activeIndex={0}>
       <div className="anim-rise">
-        <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
-          Nivel {level} · {info.name}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+            Nivel {level} · {info.name}
+          </p>
+          {remainingSeconds !== null && (
+            <div
+              className={
+                expired
+                  ? "flex items-center gap-1.5 rounded-full bg-[#fdf0f0] px-3 py-1 text-[12px] font-semibold text-danger tabular-nums"
+                  : "flex items-center gap-1.5 rounded-full bg-[#f2f2f5] px-3 py-1 text-[12px] font-medium text-muted tabular-nums"
+              }
+            >
+              <Clock3 className="size-3.5" />
+              {expired ? "Tiempo agotado" : `${formatSeconds(remainingSeconds)} restantes`}
+            </div>
+          )}
+        </div>
         <h1 className="mt-3 text-[34px] leading-[1.08] font-semibold tracking-[-0.035em] sm:text-[46px]">
           Hola, {candidate.firstName}.
           <br />
@@ -297,6 +391,19 @@ function IntroScreen({
             <Notice tone="danger">{error}</Notice>
           </div>
         )}
+        {expired && (
+          <div className="mt-6">
+            <Notice tone="warning">
+              El tiempo del examen ha terminado. Puedes enviar lo que llevas respondido; las
+              secciones incompletas puntuarán como cero.
+            </Notice>
+          </div>
+        )}
+        {submitError && (
+          <div className="mt-6">
+            <Notice tone="danger">{submitError}</Notice>
+          </div>
+        )}
         {!loading && !error && bundle && bundle.questions.length === 0 && (
           <div className="mt-6">
             <Notice tone="warning">
@@ -307,9 +414,20 @@ function IntroScreen({
         )}
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Button size="lg" onClick={onStart} disabled={loading} icon={<ArrowRight className="size-4" />}>
-            {loading ? "Preparando el examen…" : "Comenzar"}
-          </Button>
+          {expired ? (
+            <Button
+              size="lg"
+              onClick={onSubmit}
+              loading={submitting}
+              icon={<ArrowRight className="size-4" />}
+            >
+              Enviar examen
+            </Button>
+          ) : (
+            <Button size="lg" onClick={onStart} disabled={loading} icon={<ArrowRight className="size-4" />}>
+              {loading ? "Preparando el examen…" : "Comenzar"}
+            </Button>
+          )}
           {error && (
             <Button variant="secondary" size="lg" onClick={onRetry} icon={<RotateCcw className="size-4" />}>
               Reintentar
@@ -360,11 +478,16 @@ function CompletionScreen({
           ))}
         </div>
 
-        <Link to="/" className="mt-7 inline-block">
-          <Button variant="secondary" size="lg">
-            Volver al inicio
-          </Button>
-        </Link>
+        <div className="mt-7 flex flex-wrap justify-center gap-2">
+          <Link to="/resultado">
+            <Button size="lg">Consultar mi resultado</Button>
+          </Link>
+          <Link to="/">
+            <Button variant="secondary" size="lg">
+              Volver al inicio
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Check, Headphones, ListChecks, Mic, PenLine, ShieldCheck } from "lucide-react";
 import { Button, Field, Notice } from "../components/ui";
 import { LEVELS, LEVEL_INFO, type Candidate, type Level } from "../lib/types";
@@ -107,7 +107,14 @@ export default function Welcome() {
 
           <p className="mt-8 flex items-center gap-2 text-[12px] text-faint">
             <Check className="size-3.5" />
-            Duración estimada: 60—90 minutos · Progreso guardado en este dispositivo
+            Tiempo limitado según el nivel (45—90 min) · Progreso guardado en este dispositivo
+          </p>
+
+          <p className="mt-3 text-[12px] text-faint">
+            ¿Ya hiciste el examen?{" "}
+            <Link to="/resultado" className="font-medium text-accent-ink underline-offset-2 hover:underline">
+              Consulta tu resultado
+            </Link>
           </p>
         </section>
 

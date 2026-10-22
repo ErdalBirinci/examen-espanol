@@ -24,6 +24,7 @@ export default function Listening() {
   const [title, setTitle] = useState("");
   const [maxPlays, setMaxPlays] = useState(2);
   const [position, setPosition] = useState(0);
+  const [transcript, setTranscript] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function Listening() {
     setTitle("");
     setMaxPlays(2);
     setPosition(items.length + 1);
+    setTranscript("");
     setFile(null);
     setFormError(null);
     setOpen(true);
@@ -61,6 +63,7 @@ export default function Listening() {
     setTitle(item.title);
     setMaxPlays(item.max_plays);
     setPosition(item.position);
+    setTranscript(item.transcript ?? "");
     setFile(null);
     setFormError(null);
     setOpen(true);
@@ -102,6 +105,7 @@ export default function Listening() {
         audio_path: audioPath,
         max_plays: Math.max(1, maxPlays),
         position: Number(position) || 0,
+        transcript: transcript.trim() || null,
       });
       setOpen(false);
       await load(level);
@@ -176,6 +180,14 @@ export default function Listening() {
                     src={listeningAudioUrl(item.audio_path)}
                     className="mt-2 h-9 w-full max-w-md"
                   />
+                  {item.transcript && (
+                    <details className="mt-2 max-w-xl text-[11.5px] text-muted">
+                      <summary className="cursor-pointer text-faint transition hover:text-ink">
+                        Değerlendirme transkripti
+                      </summary>
+                      <p className="mt-1.5 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
+                    </details>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -265,6 +277,18 @@ export default function Listening() {
               />
             </Field>
           </div>
+
+          <Field
+            label="Transkript (opsiyonel)"
+            hint="Aday görmez; değerlendiriciye referans olur. Sesin birebir metni."
+          >
+            <textarea
+              className="field min-h-[90px] resize-y"
+              placeholder="Buenos días, ¿cuánto cuestan estos tomates?"
+              value={transcript}
+              onChange={(event) => setTranscript(event.target.value)}
+            />
+          </Field>
         </div>
       </Modal>
 

@@ -7,8 +7,11 @@ import {
 } from "./supabase";
 import type {
   Attempt,
+  AttemptResult,
   Candidate,
+  ContentStats,
   ExamBundle,
+  ExamSettings,
   Level,
   ListeningItem,
   QuestionAdmin,
@@ -28,7 +31,7 @@ function fail(message: string): never {
 /* ------------------------------------------------------------------ */
 
 export async function loadExamBundle(level: Level): Promise<ExamBundle> {
-  const [questionsRes, listeningRes, writingRes, speakingRes] = await Promise.all([
+  const [questionsRes, listeningRes, writingRes, speakingRes, settingsRes] = await Promise.all([
     supabase
       .from("questions_public")
       .select("id, level, prompt, options, position")
@@ -56,6 +59,11 @@ export async function loadExamBundle(level: Level): Promise<ExamBundle> {
       .order("position", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("exam_settings")
+      .select("level, duration_minutes")
+      .eq("level", level)
+      .maybeSingle(),
   ]);
 
   if (questionsRes.error) fail(`Sorular yüklenemedi: ${questionsRes.error.message}`);
@@ -68,6 +76,8 @@ export async function loadExamBundle(level: Level): Promise<ExamBundle> {
     listening: (listeningRes.data ?? []) as unknown as ListeningItem[],
     writing: (writingRes.data as unknown as WritingPrompt | null) ?? null,
     speaking: (speakingRes.data as unknown as SpeakingPrompt | null) ?? null,
+    settings:
+      (settingsRes.data as unknown as ExamSettings | null) ?? { level, duration_minutes: 60 },
   };
 }
 
@@ -95,25 +105,48 @@ export interface SubmitAttemptInput {
 }
 
 export async function submitAttempt(input: SubmitAttemptInput): Promise<string> {
-  // The id is generated here on purpose: PostgREST RETURNING would need a SELECT
-  // policy, and candidates must never be able to read exam records.
-  const id = crypto.randomUUID();
-  const { error } = await supabase.from("attempts").insert({
-    id,
-    full_name: `${input.candidate.firstName} ${input.candidate.lastName}`.trim(),
-    email: input.candidate.email.trim().toLowerCase(),
-    level: input.level,
-    status: "submitted",
-    mc_answers: input.mcAnswers,
-    listening_answers: input.listeningAnswers,
-    writing_text: input.writingText,
-    speaking_path: input.speakingPath,
-    speaking_duration: input.speakingDuration,
-    submitted_at: new Date().toISOString(),
+  // Validation, rate limiting and scoring all happen inside Postgres; the
+  // browser no longer writes to attempts directly.
+  const { data, error } = await supabase.rpc("submit_attempt", {
+    p_level: input.level,
+    p_full_name: `${input.candidate.firstName} ${input.candidate.lastName}`.trim(),
+    p_email: input.candidate.email.trim().toLowerCase(),
+    p_mc_answers: input.mcAnswers,
+    p_listening_answers: input.listeningAnswers,
+    p_writing_text: input.writingText,
+    p_speaking_path: input.speakingPath,
+    p_speaking_duration: input.speakingDuration,
   });
 
-  if (error) fail(`Sınav gönderilemedi: ${error.message}`);
-  return id;
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("RATE_LIMIT")) {
+      fail("Bu e-posta ile 2 dakika içinde yalnızca bir sınav gönderilebilir. Lütfen biraz bekle.");
+    }
+    if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
+    if (message.includes("INVALID_NAME")) fail("Ad ve soyad geçersiz görünüyor.");
+    if (message.includes("WRITING_TOO_LONG")) fail("Yazma cevabı izin verilen uzunluğu aşıyor.");
+    if (message.includes("INVALID_RECORDING") || message.includes("INVALID_DURATION")) {
+      fail("Ses kaydı bilgileri geçersiz. Kaydı kaldırıp yeniden dene.");
+    }
+    fail(`Sınav gönderilemedi: ${message}`);
+  }
+
+  return data as string;
+}
+
+export async function lookupAttemptResult(code: string, email: string): Promise<AttemptResult | null> {
+  const { data, error } = await supabase.rpc("lookup_attempt_result", {
+    p_code: code.trim().toLowerCase(),
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("INVALID_CODE")) fail("Referans kodu 8 karakterlik olmalı (ör. 4F2A9C1B).");
+    if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
+    fail(`Sonuç sorgulanamadı: ${message}`);
+  }
+  return (data as unknown as AttemptResult | null) ?? null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,6 +323,7 @@ export interface ListeningInput {
   audio_path: string;
   max_plays: number;
   position: number;
+  transcript: string | null;
 }
 
 export async function saveListening(input: ListeningInput): Promise<void> {
@@ -299,6 +333,7 @@ export async function saveListening(input: ListeningInput): Promise<void> {
     audio_path: input.audio_path,
     max_plays: input.max_plays,
     position: input.position,
+    transcript: input.transcript?.trim() || null,
   };
   const query = input.id
     ? supabase.from("listening_items").update(payload).eq("id", input.id)
@@ -409,4 +444,68 @@ export async function saveSpeaking(input: SpeakingInput): Promise<void> {
 export async function deleteSpeaking(id: string): Promise<void> {
   const { error } = await supabase.from("speaking_prompts").delete().eq("id", id);
   if (error) fail(`Konuşma konusu silinemedi: ${error.message}`);
+}
+
+/* --------------------------- Sınav ayarları ------------------------- */
+
+export async function listExamSettings(): Promise<ExamSettings[]> {
+  const { data, error } = await supabase
+    .from("exam_settings")
+    .select("level, duration_minutes")
+    .order("level");
+  if (error) fail(`Sınav ayarları yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as ExamSettings[];
+}
+
+export async function saveExamSettings(rows: ExamSettings[]): Promise<void> {
+  const { error } = await supabase.from("exam_settings").upsert(
+    rows.map((row) => ({
+      level: row.level,
+      duration_minutes: Math.min(240, Math.max(10, Math.round(row.duration_minutes))),
+      updated_at: new Date().toISOString(),
+    })),
+  );
+  if (error) fail(`Sınav ayarları kaydedilemedi: ${error.message}`);
+}
+
+export async function exportBackup(): Promise<string> {
+  const tables = [
+    "questions",
+    "listening_items",
+    "writing_prompts",
+    "speaking_prompts",
+    "attempts",
+    "exam_settings",
+  ] as const;
+
+  const results = await Promise.all(
+    tables.map((table) =>
+      table === "exam_settings"
+        ? supabase.from(table).select("*").order("level", { ascending: true })
+        : supabase.from(table).select("*").order("created_at", { ascending: true }),
+    ),
+  );
+
+  const data: Record<string, unknown> = {};
+  results.forEach((result, index) => {
+    if (result.error) fail(`${tables[index]} yedeği alınamadı: ${result.error.message}`);
+    data[tables[index]] = result.data ?? [];
+  });
+
+  return JSON.stringify(
+    {
+      app: "examen-espanol",
+      version: 1,
+      exported_at: new Date().toISOString(),
+      data,
+    },
+    null,
+    2,
+  );
+}
+
+export async function contentStats(): Promise<ContentStats[]> {
+  const { data, error } = await supabase.rpc("content_stats");
+  if (error) fail(`İçerik istatistikleri yüklenemedi: ${error.message}`);
+  return (data ?? []) as ContentStats[];
 }
