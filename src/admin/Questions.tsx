@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Check, FileUp, Upload, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, Download, FileUp, Upload, X } from "lucide-react";
 import { deleteQuestion, importQuestions, listQuestions, saveQuestion } from "../lib/api";
 import { parseQuestionImport } from "../lib/questionImport";
+import { csvFileName, questionsToCsv } from "../lib/questionExport";
 import type { Level, QuestionAdmin } from "../lib/types";
 import { cn, errorMessage } from "../lib/utils";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
@@ -31,7 +32,7 @@ export default function Questions() {
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const importPreview = useMemo(
     () => parseQuestionImport(importText, questions),
@@ -57,7 +58,7 @@ export default function Questions() {
   useEffect(() => {
     setImportOpen(false);
     setImportText("");
-    setImportNotice(null);
+    setSuccessNotice(null);
   }, [level]);
 
   function openCreate() {
@@ -122,13 +123,27 @@ export default function Questions() {
     setImportError(null);
   }
 
+  function exportCsv() {
+    if (questions.length === 0) return;
+    const blob = new Blob([questionsToCsv(questions)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = csvFileName(level);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setSuccessNotice(`${questions.length} soru CSV olarak indirildi.`);
+  }
+
   async function runImport() {
     if (importPreview.rows.length === 0) return;
     setImporting(true);
     setImportError(null);
     try {
       await importQuestions(level, importPreview.rows);
-      setImportNotice(`${importPreview.rows.length} soru ${level} seviyesine eklendi.`);
+      setSuccessNotice(`${importPreview.rows.length} soru ${level} seviyesine eklendi.`);
       setImportOpen(false);
       setImportText("");
       await load(level);
@@ -163,6 +178,15 @@ export default function Questions() {
             <span className="rounded-xl border border-line bg-white px-3 py-2 text-[12px] text-muted tabular-nums">
               {questions.length} / 50 soru
             </span>
+            <Button
+              variant="secondary"
+              onClick={exportCsv}
+              disabled={questions.length === 0}
+              title={`${level} sorularını CSV olarak indir`}
+              icon={<Download className="size-4" />}
+            >
+              CSV indir
+            </Button>
             <Button variant="secondary" onClick={openImport} icon={<FileUp className="size-4" />}>
               Toplu içe aktar
             </Button>
@@ -175,14 +199,14 @@ export default function Questions() {
 
       <LevelTabs value={level} onChange={setLevel} suffix={(code) => (code === level ? questions.length : undefined)} />
 
-      {importNotice && (
+      {successNotice && (
         <div className="mb-4 flex items-start gap-2">
           <div className="flex-1">
-            <Notice tone="success">{importNotice}</Notice>
+            <Notice tone="success">{successNotice}</Notice>
           </div>
           <button
             type="button"
-            onClick={() => setImportNotice(null)}
+            onClick={() => setSuccessNotice(null)}
             aria-label="Bildirimi kapat"
             className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
           >

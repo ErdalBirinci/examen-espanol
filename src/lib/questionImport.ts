@@ -310,6 +310,9 @@ function parseCsvText(text: string, existing: QuestionAdmin[]): ImportPreview {
   dataRows.forEach((cells, index) => {
     const line = index + (hasHeader ? 2 : 1);
     const options = optionColumns.map((column) => cells[column] ?? "");
+    // Exported files may carry more option columns than a specific question
+    // uses; trailing blanks are padding, not a missing choice.
+    while (options.length > 2 && options[options.length - 1].trim() === "") options.pop();
     const correct = parseCorrect(cells[mapping.correct] ?? "", options.length, false);
     const positionRaw = mapping.position >= 0 ? Number(cells[mapping.position]) : NaN;
 

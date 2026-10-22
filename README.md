@@ -91,6 +91,10 @@ kontrolünden geçer, tüm veri erişimi RLS ile korunur.
 doğrudan yapıştırılabilir. Aktarım öncesi önizleme; geçerli, hatalı ve zaten var olan soruları gösterir;
 yalnızca geçerli satırlar eklenir (yinelenen soru metinleri atlanır).
 
+**CSV indir** butonu seçili seviyedeki tüm soruları, içe aktarmayla aynı sütun düzeninde indirir
+(UTF-8 BOM'lu, Excel ile uyumlu). İndirilen dosya düzenlenip aynı seviyeye yeniden aktarılabilir;
+soru metinleri zaten kayıtlı olduğu için yinelenen satırlar atlanır.
+
 CSV başlıkları (Türkçe başlıklar da tanınır: `soru, secenek_a…, dogru, aciklama, sira`):
 
 ```csv
