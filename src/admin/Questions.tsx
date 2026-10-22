@@ -109,9 +109,14 @@ export default function Questions() {
         title="Test Soruları"
         description="Her seviye için çoktan seçmeli soruları yönet. Adaylar soruları doğru cevapları görmeden alır."
         action={
-          <Button onClick={openCreate} icon={<Plus className="size-4" />}>
-            Soru ekle
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="rounded-xl border border-line bg-white px-3 py-2 text-[12px] text-muted tabular-nums">
+              {questions.length} / 50 soru
+            </span>
+            <Button onClick={openCreate} icon={<Plus className="size-4" />}>
+              Soru ekle
+            </Button>
+          </div>
         }
       />
 

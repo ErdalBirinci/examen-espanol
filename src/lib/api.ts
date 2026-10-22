@@ -34,7 +34,8 @@ export async function loadExamBundle(level: Level): Promise<ExamBundle> {
       .select("id, level, prompt, options, position")
       .eq("level", level)
       .order("position", { ascending: true })
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: true })
+      .limit(50),
     supabase
       .from("listening_items")
       .select("*")
