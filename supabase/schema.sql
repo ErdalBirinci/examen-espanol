@@ -65,7 +65,7 @@ create policy "questions admin all" on public.questions
 -- View sahibi (postgres) RLS'i atlar, anon yalnızca görünümü okur.
 create or replace view public.questions_public
 with (security_invoker = false) as
-  select id, level, prompt, options, position
+  select id, level, prompt, options, position, created_at
   from public.questions;
 
 revoke all on public.questions_public from anon, authenticated;

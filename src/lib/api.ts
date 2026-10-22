@@ -95,25 +95,25 @@ export interface SubmitAttemptInput {
 }
 
 export async function submitAttempt(input: SubmitAttemptInput): Promise<string> {
-  const { data, error } = await supabase
-    .from("attempts")
-    .insert({
-      full_name: `${input.candidate.firstName} ${input.candidate.lastName}`.trim(),
-      email: input.candidate.email.trim().toLowerCase(),
-      level: input.level,
-      status: "submitted",
-      mc_answers: input.mcAnswers,
-      listening_answers: input.listeningAnswers,
-      writing_text: input.writingText,
-      speaking_path: input.speakingPath,
-      speaking_duration: input.speakingDuration,
-      submitted_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  // The id is generated here on purpose: PostgREST RETURNING would need a SELECT
+  // policy, and candidates must never be able to read exam records.
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("attempts").insert({
+    id,
+    full_name: `${input.candidate.firstName} ${input.candidate.lastName}`.trim(),
+    email: input.candidate.email.trim().toLowerCase(),
+    level: input.level,
+    status: "submitted",
+    mc_answers: input.mcAnswers,
+    listening_answers: input.listeningAnswers,
+    writing_text: input.writingText,
+    speaking_path: input.speakingPath,
+    speaking_duration: input.speakingDuration,
+    submitted_at: new Date().toISOString(),
+  });
 
   if (error) fail(`Sınav gönderilemedi: ${error.message}`);
-  return (data as { id: string }).id;
+  return id;
 }
 
 /* ------------------------------------------------------------------ */

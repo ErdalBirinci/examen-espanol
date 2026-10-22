@@ -58,6 +58,7 @@ export default function ExamPage() {
   const [mcAnswers, setMcAnswers] = useState<Record<string, number>>({});
   const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
   const [writing, setWriting] = useState("");
+  const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [attemptCode, setAttemptCode] = useState<string | null>(null);
@@ -81,24 +82,29 @@ export default function ExamPage() {
 
   // Restore a previous draft so a refresh mid-exam does not lose work.
   useEffect(() => {
+    setHydrated(false);
     if (!draftKey) return;
     try {
       const raw = localStorage.getItem(draftKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as Partial<Draft>;
-      if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
-      if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
-      if (typeof draft.writing === "string") setWriting(draft.writing);
+      if (raw) {
+        const draft = JSON.parse(raw) as Partial<Draft>;
+        if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
+        if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
+        if (typeof draft.writing === "string") setWriting(draft.writing);
+      }
     } catch {
       /* ignore corrupt drafts */
     }
+    setHydrated(true);
   }, [draftKey]);
 
   useEffect(() => {
-    if (!draftKey || stage === "done") return;
+    // Never write before the restore above has run, otherwise the empty initial
+    // state would wipe the saved draft on every reload.
+    if (!draftKey || !hydrated || stage === "done") return;
     const draft: Draft = { mcAnswers, listeningAnswers, writing };
     localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [draftKey, mcAnswers, listeningAnswers, writing, stage]);
+  }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, stage]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });

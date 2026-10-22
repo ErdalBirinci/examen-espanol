@@ -451,8 +451,9 @@ function AttemptDetail({
                 { key: "speaking", label: "Konuşma puanı" },
               ] as const
             ).map(({ key, label }) => (
-              <Field key={key} label={label} hint="0–100">
+              <Field key={key} label={label} hint="0–100" htmlFor={`score-${key}`}>
                 <input
+                  id={`score-${key}`}
                   type="number"
                   min={0}
                   max={100}
@@ -470,8 +471,13 @@ function AttemptDetail({
             ))}
           </div>
           <div className="mt-3">
-            <Field label="Değerlendirici notu" hint="Aday görmez, yalnızca panelde saklanır.">
+            <Field
+              label="Değerlendirici notu"
+              hint="Aday görmez, yalnızca panelde saklanır."
+              htmlFor="admin-note"
+            >
               <textarea
+                id="admin-note"
                 className="field min-h-[90px] resize-y"
                 placeholder="Gözlemler, güçlü yönler, geliştirilecek alanlar…"
                 value={scores.note}
