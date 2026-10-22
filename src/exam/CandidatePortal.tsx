@@ -137,7 +137,8 @@ export default function CandidatePortal() {
                             )}
                           </div>
                           <p className="mt-1 text-[12px] text-muted">
-                            {LEVEL_INFO[item.level]?.name} · Asignado el {formatDate(item.created_at)}
+                            {LEVEL_INFO[item.level]?.name} · {item.duration_minutes ? `${item.duration_minutes} dk` : "Süre seviye varsayılanı"} · Asignado el{" "}
+                            {formatDate(item.created_at)}
                           </p>
                           {item.note && (
                             <p className="mt-1.5 max-w-xl text-[12px] leading-relaxed text-muted">
@@ -154,13 +155,19 @@ export default function CandidatePortal() {
 
                         <div className="flex shrink-0 items-center gap-2">
                           {done ? (
-                            <Link
-                              to={`/resultado?code=${reference}&email=${encodeURIComponent(
-                                account?.email ?? "",
-                              )}`}
-                            >
-                              <Button variant="secondary">Ver resultado</Button>
-                            </Link>
+                            item.results_visible ? (
+                              <Link
+                                to={`/resultado?code=${reference}&email=${encodeURIComponent(
+                                  account?.email ?? "",
+                                )}`}
+                              >
+                                <Button variant="secondary">Ver resultado</Button>
+                              </Link>
+                            ) : (
+                              <span className="rounded-full bg-[#fdf8ec] px-3 py-1 text-[11.5px] font-medium text-warning">
+                                Resultados aún no publicados
+                              </span>
+                            )
                           ) : (
                             <Link to={`/examen/${item.id}`}>
                               <Button icon={<ArrowRight className="size-4" />}>

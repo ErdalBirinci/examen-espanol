@@ -153,4 +153,5 @@ export interface AttemptResult {
   writing_score: number | null;
   speaking_score: number | null;
   total_score: number | null;
+  results_visible?: boolean;
 }

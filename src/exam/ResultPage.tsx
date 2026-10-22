@@ -149,7 +149,8 @@ export default function ResultPage() {
 }
 
 function ResultCard({ result }: { result: AttemptResult }) {
-  const graded = result.status === "graded" && result.total_score !== null;
+  const hidden = result.results_visible === false;
+  const graded = !hidden && result.status === "graded" && result.total_score !== null;
   const testPercent =
     result.mc_total && result.mc_total > 0
       ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 100)
@@ -191,6 +192,14 @@ function ResultCard({ result }: { result: AttemptResult }) {
         </span>
       </div>
 
+      {hidden ? (
+        <div className="px-6 py-6 sm:px-8">
+          <Notice tone="warning">
+            Tu examen está enviado, pero el centro todavía no ha publicado los resultados. Esta misma
+            consulta mostrará las puntuaciones cuando estén disponibles.
+          </Notice>
+        </div>
+      ) : (
       <div className="grid gap-6 px-6 py-6 sm:grid-cols-[1fr_auto] sm:px-8">
         <div className="space-y-3">
           {rows.map((row) => (
@@ -216,14 +225,17 @@ function ResultCard({ result }: { result: AttemptResult }) {
           <p className="mt-1 text-[11px] text-white/60">sobre 100</p>
         </div>
       </div>
+      )}
 
-      <div className="border-t border-line px-6 py-4 sm:px-8">
-        <p className="text-[11.5px] leading-relaxed text-faint">
-          {graded
-            ? "La puntuación global combina las cuatro secciones: 40 % vocabulario y gramática, 20 % cada una de las destrezas."
-            : "Las secciones de expresión se están evaluando manualmente. Cuando el equipo termine, esta misma consulta mostrará la puntuación global."}
-        </p>
-      </div>
+      {!hidden && (
+        <div className="border-t border-line px-6 py-4 sm:px-8">
+          <p className="text-[11.5px] leading-relaxed text-faint">
+            {graded
+              ? "La puntuación global combina las cuatro secciones: 40 % vocabulario y gramática, 20 % cada una de las destrezas."
+              : "Las secciones de expresión se están evaluando manualmente. Cuando el equipo termine, esta misma consulta mostrará la puntuación global."}
+          </p>
+        </div>
+      )}
     </section>
   );
 }

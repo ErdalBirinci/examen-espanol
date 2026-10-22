@@ -24,6 +24,8 @@ export default function Assignments() {
     title: "",
     note: "",
     dueAt: "",
+    duration: "",
+    resultsVisible: true,
   });
 
   const load = useCallback(async () => {
@@ -56,8 +58,18 @@ export default function Assignments() {
         title: form.title,
         note: form.note,
         dueAt: form.dueAt || null,
+        durationMinutes: form.duration ? Number(form.duration) : null,
+        resultsVisible: form.resultsVisible,
       });
-      setForm({ email: "", level: form.level, title: "", note: "", dueAt: "" });
+      setForm({
+        email: "",
+        level: form.level,
+        title: "",
+        note: "",
+        dueAt: "",
+        duration: form.duration,
+        resultsVisible: form.resultsVisible,
+      });
       await load();
     } catch (err) {
       setError(errorMessage(err));
@@ -140,6 +152,32 @@ export default function Assignments() {
             />
           </Field>
         </div>
+
+        <div className="mt-3 grid items-end gap-3 sm:grid-cols-[180px_1fr]">
+          <Field label="Sınav süresi (dk)" hint="Boş = seviye varsayılanı.">
+            <input
+              type="number"
+              min={10}
+              max={240}
+              className="field"
+              placeholder="Varsayılan"
+              value={form.duration}
+              onChange={(event) => setForm({ ...form, duration: event.target.value })}
+            />
+          </Field>
+          <label className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-[12.5px] font-medium">
+            <input
+              type="checkbox"
+              className="size-4 accent-[#1d1d1f]"
+              checked={form.resultsVisible}
+              onChange={(event) => setForm({ ...form, resultsVisible: event.target.checked })}
+            />
+            Sonuçları adaya göster
+            <span className="text-[11px] font-normal text-faint">
+              Kapalıysa puanlar sonuç sayfasında gizlenir.
+            </span>
+          </label>
+        </div>
         <div className="mt-3">
           <Field label="Adaya not (opsiyonel)" hint="Aday panelinde görünür.">
             <input
@@ -194,9 +232,15 @@ export default function Assignments() {
                 <div>
                   <LevelBadge level={row.level} />
                 </div>
-                <p className="truncate text-[12.5px] text-muted">
-                  {row.title || `Examen ${row.level}`}
-                </p>
+                <div className="min-w-0">
+                  <p className="truncate text-[12.5px] text-muted">
+                    {row.title || `Examen ${row.level}`}
+                  </p>
+                  <p className="text-[11px] text-faint">
+                    {row.duration_minutes ? `${row.duration_minutes} dk` : "Varsayılan süre"}
+                    {!row.results_visible && " · sonuçlar gizli"}
+                  </p>
+                </div>
                 <p className="text-[11.5px] text-muted">
                   {row.due_at ? new Date(row.due_at).toLocaleString("tr-TR") : "—"}
                 </p>

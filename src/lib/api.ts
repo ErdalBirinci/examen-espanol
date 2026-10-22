@@ -254,6 +254,8 @@ export interface Assignment {
   title: string | null;
   note: string | null;
   due_at: string | null;
+  duration_minutes: number | null;
+  results_visible: boolean;
   created_at: string;
   attempt_id: string | null;
   attempt_status: "submitted" | "graded" | null;
@@ -353,6 +355,8 @@ export async function saveAssignment(input: {
   title: string;
   note: string;
   dueAt: string | null;
+  durationMinutes: number | null;
+  resultsVisible: boolean;
 }): Promise<void> {
   const { error } = await supabase.from("exam_assignments").insert({
     email: input.email.trim().toLowerCase(),
@@ -360,6 +364,8 @@ export async function saveAssignment(input: {
     title: input.title.trim() || null,
     note: input.note.trim() || null,
     due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
+    duration_minutes: input.durationMinutes,
+    results_visible: input.resultsVisible,
     created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
   });
   if (error) fail(`Sınav atanamadı: ${error.message}`);

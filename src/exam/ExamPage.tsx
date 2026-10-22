@@ -204,7 +204,8 @@ export default function ExamPage() {
     return () => window.clearTimeout(timer);
   }, [draftToken, hydrated, startedAt, stage, mcAnswers, listeningAnswers, writing]);
 
-  const durationMinutes = bundle?.settings.duration_minutes ?? 60;
+  const durationMinutes =
+    assignment?.duration_minutes ?? bundle?.settings.duration_minutes ?? 60;
   const endsAt = startedAt ? startedAt + durationMinutes * 60_000 : null;
   const remainingSeconds = endsAt ? Math.max(0, Math.ceil((endsAt - now) / 1000)) : null;
   const expired = remainingSeconds !== null && remainingSeconds <= 0;
