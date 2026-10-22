@@ -6,6 +6,7 @@ import {
   listAttemptsPage,
   listListening,
   listQuestions,
+  notifyAttemptResult,
   signedRecordingUrl,
 } from "../lib/api";
 import { LEVELS, type Attempt, type Level, type ListeningItem, type QuestionAdmin } from "../lib/types";
@@ -285,6 +286,8 @@ function AttemptDetail({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+  const [emailWarning, setEmailWarning] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -324,6 +327,26 @@ function AttemptDetail({
       };
       await gradeAttempt(payload);
       onSaved({ ...attempt, ...payload });
+
+      const notification = await notifyAttemptResult(attempt.id);
+      if (notification.sent) {
+        setEmailWarning(false);
+        setEmailNotice("Sonuç e-postası adaya gönderildi.");
+      } else if (notification.reason === "already_sent") {
+        setEmailWarning(false);
+        setEmailNotice("Sonuç e-postası daha önce gönderilmiş.");
+      } else if (notification.reason === "email_not_configured") {
+        setEmailWarning(true);
+        setEmailNotice(
+          "E-posta servisi yapılandırılmadı: Supabase Edge Function secret'larına RESEND_API_KEY ve RESULT_FROM_EMAIL ekle.",
+        );
+      } else if (notification.reason === "not_graded") {
+        setEmailWarning(true);
+        setEmailNotice("E-posta gönderilmedi: sınav henüz değerlendirilmiş sayılmıyor.");
+      } else {
+        setEmailWarning(true);
+        setEmailNotice(`Sonuç e-postası gönderilemedi (${notification.reason ?? "bilinmeyen hata"}).`);
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -359,6 +382,7 @@ function AttemptDetail({
     >
       <div className="space-y-4">
         {error && <Notice tone="danger">{error}</Notice>}
+        {emailNotice && <Notice tone={emailWarning ? "warning" : "success"}>{emailNotice}</Notice>}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ScoreTile label="Test" value={percent === null ? "—" : `%${percent}`} detail={`${attempt.mc_correct ?? 0} / ${attempt.mc_total ?? 0} doğru`} />

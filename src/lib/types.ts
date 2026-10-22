@@ -109,6 +109,7 @@ export interface Attempt {
   writing_score: number | null;
   speaking_score: number | null;
   admin_note: string | null;
+  result_notified_at?: string | null;
   created_at: string;
   submitted_at: string;
 }

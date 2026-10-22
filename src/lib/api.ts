@@ -330,6 +330,33 @@ export async function gradeAttempt(input: GradeInput): Promise<void> {
   if (error) fail(`Değerlendirme kaydedilemedi: ${error.message}`);
 }
 
+export interface NotifyResult {
+  sent: boolean;
+  reason?: string;
+}
+
+export async function notifyAttemptResult(attemptId: string): Promise<NotifyResult> {
+  const { data, error } = await supabase.functions.invoke("notify-result", {
+    body: { attemptId },
+  });
+
+  if (error) {
+    let reason = "";
+    const context = (error as { context?: Response }).context;
+    if (context && typeof context.json === "function") {
+      try {
+        const body = (await context.json()) as { error?: string };
+        reason = body?.error ?? "";
+      } catch {
+        /* non-json error body */
+      }
+    }
+    return { sent: false, reason: reason || error.message };
+  }
+
+  return (data as NotifyResult | null) ?? { sent: false, reason: "empty_response" };
+}
+
 export async function deleteAttempt(id: string): Promise<void> {
   const { error } = await supabase.from("attempts").delete().eq("id", id);
   if (error) fail(`Kayıt silinemedi: ${error.message}`);

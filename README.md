@@ -135,9 +135,12 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 7. **Özet ekranı:** gönderimden önce dört bölümün durumu ve eksikler listelenir; aday onaylayarak gönderir.
 8. Gönderim `submit_attempt` RPC'siyle yapılır: sunucu isim/e-posta/biçim doğrular, aynı e-posta ile
    2 dakika içinde ikinci gönderimi engeller ve test puanını hesaplar. Adaya bir referans kodu gösterilir.
-   Taslak, gönderim tamamlanana kadar tarayıcıda saklanır.
-9. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
-   görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
+9. **Sunucu taslağı:** sınav başlarken `exam_drafts` kaydı oluşur, cevaplar ~1 saniye gecikmeyle
+    kaydedilir. Aynı tarayıcıda token ile otomatik, başka cihazda **taslak kodu + e-posta** ile giriş
+    sayfasındaki "¿Empezaste en otro dispositivo?" bağlantısından devam edilir. Süre sunucudaki
+    `started_at` üzerinden işler. Gönderimde taslak silinir, 7 günden eski taslaklar temizlenir.
+10. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
+    görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
 
 ## 6. Notlar ve sınırlar
 
@@ -149,6 +152,12 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 - 50 MB sınırı hem istemcide hem Supabase Storage kova ayarında uygulanır.
 - Yedek: **Genel Bakış → Yedek indir** tüm tabloları JSON olarak indirir (soru, dinleme, yazma,
   konuşma, sınavlar, süre ayarları). Geri yükleme henüz otomatik değildir.
+- Sonuç listesi sunucu tarafında sayfalanır (25 kayıt) ve isim/e-posta araması veritabanında yapılır.
+- **Sonuç e-postası:** `supabase/functions/notify-result` edge function'ı, puanlama kaydedildiğinde
+  adaya Resend üzerinden sonuç özetini yollar. Gerekli secret'lar: `RESEND_API_KEY`,
+  `RESULT_FROM_EMAIL` (doğrulanmış gönderici), `APP_PUBLIC_URL`. Secret'lar eklenmeden puanlama
+  çalışır; panel "E-posta servisi yapılandırılmadı" uyarısı gösterir ve gönderim atlanır.
+  Aynı sonuç ikinci kez e-postalanmaz (`attempts.result_notified_at`).
 - Ücretsiz Supabase planı 1 GB dosya depolama ve 500 MB veritabanı içerir; yoğun kullanımda planı
   yükseltmek gerekebilir.
 
