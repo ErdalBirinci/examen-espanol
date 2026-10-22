@@ -248,6 +248,29 @@ export async function deleteQuestion(id: string): Promise<void> {
   if (error) fail(`Soru silinemedi: ${error.message}`);
 }
 
+export interface ImportedQuestion {
+  prompt: string;
+  options: string[];
+  correct_index: number;
+  explanation: string | null;
+  position: number;
+}
+
+export async function importQuestions(level: Level, rows: ImportedQuestion[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("questions").insert(
+    rows.map((row) => ({
+      level,
+      prompt: row.prompt,
+      options: row.options,
+      correct_index: row.correct_index,
+      explanation: row.explanation,
+      position: row.position,
+    })),
+  );
+  if (error) fail(`Sorular içe aktarılamadı: ${error.message}`);
+}
+
 /* ----------------------------- Dinleme ----------------------------- */
 
 export async function listListening(level: Level): Promise<ListeningItem[]> {

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Check } from "lucide-react";
-import { deleteQuestion, listQuestions, saveQuestion } from "../lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Pencil, Trash2, Check, FileUp, Upload, X } from "lucide-react";
+import { deleteQuestion, importQuestions, listQuestions, saveQuestion } from "../lib/api";
+import { parseQuestionImport } from "../lib/questionImport";
 import type { Level, QuestionAdmin } from "../lib/types";
 import { cn, errorMessage } from "../lib/utils";
-import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
+import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
 
 const EMPTY_FORM = {
@@ -26,6 +27,16 @@ export default function Questions() {
   const [formError, setFormError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<QuestionAdmin | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+
+  const importPreview = useMemo(
+    () => parseQuestionImport(importText, questions),
+    [importText, questions],
+  );
 
   const load = useCallback(async (target: Level) => {
     setLoading(true);
@@ -42,6 +53,12 @@ export default function Questions() {
   useEffect(() => {
     void load(level);
   }, [level, load]);
+
+  useEffect(() => {
+    setImportOpen(false);
+    setImportText("");
+    setImportNotice(null);
+  }, [level]);
 
   function openCreate() {
     setEditing(null);
@@ -89,6 +106,39 @@ export default function Questions() {
     }
   }
 
+  function openImport() {
+    setImportText("");
+    setImportError(null);
+    setImportOpen(true);
+  }
+
+  async function handleImportFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setImportError("Dosya 2 MB sınırını aşıyor.");
+      return;
+    }
+    setImportText(await file.text());
+    setImportError(null);
+  }
+
+  async function runImport() {
+    if (importPreview.rows.length === 0) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      await importQuestions(level, importPreview.rows);
+      setImportNotice(`${importPreview.rows.length} soru ${level} seviyesine eklendi.`);
+      setImportOpen(false);
+      setImportText("");
+      await load(level);
+    } catch (err) {
+      setImportError(errorMessage(err));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleDelete() {
     if (!toDelete) return;
     setDeleting(true);
@@ -109,10 +159,13 @@ export default function Questions() {
         title="Test Soruları"
         description="Her seviye için çoktan seçmeli soruları yönet. Adaylar soruları doğru cevapları görmeden alır."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-xl border border-line bg-white px-3 py-2 text-[12px] text-muted tabular-nums">
               {questions.length} / 50 soru
             </span>
+            <Button variant="secondary" onClick={openImport} icon={<FileUp className="size-4" />}>
+              Toplu içe aktar
+            </Button>
             <Button onClick={openCreate} icon={<Plus className="size-4" />}>
               Soru ekle
             </Button>
@@ -121,6 +174,22 @@ export default function Questions() {
       />
 
       <LevelTabs value={level} onChange={setLevel} suffix={(code) => (code === level ? questions.length : undefined)} />
+
+      {importNotice && (
+        <div className="mb-4 flex items-start gap-2">
+          <div className="flex-1">
+            <Notice tone="success">{importNotice}</Notice>
+          </div>
+          <button
+            type="button"
+            onClick={() => setImportNotice(null)}
+            aria-label="Bildirimi kapat"
+            className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4">
@@ -280,6 +349,134 @@ export default function Questions() {
               />
             </Field>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        wide
+        title="Toplu soru içe aktar"
+        description={`${level} seviyesine aktarılacak · CSV veya JSON`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setImportOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              onClick={() => void runImport()}
+              loading={importing}
+              disabled={importPreview.rows.length === 0}
+            >
+              {importPreview.rows.length > 0
+                ? `${importPreview.rows.length} soruyu aktar`
+                : "Aktarılacak soru yok"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {importError && <Notice tone="danger">{importError}</Notice>}
+
+          <div className="rounded-xl border border-line bg-[#fcfcfe] p-3.5">
+            <p className="text-[12px] font-semibold">Beklenen biçim</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+              CSV başlıkları:{" "}
+              <code className="rounded bg-white px-1 py-0.5 text-[11px] ring-1 ring-line">
+                prompt, option_a, option_b, option_c, option_d, correct, explanation, position
+              </code>
+              . JSON bir dizi olabilir:{" "}
+              <code className="rounded bg-white px-1 py-0.5 text-[11px] ring-1 ring-line">
+                {'[{"prompt": "…", "options": ["…"], "correct": "B"}]'}
+              </code>
+              . Doğru cevap A–D harfi veya 1–4 numarası olabilir; JSON'daki{" "}
+              <code className="rounded bg-white px-1 py-0.5 text-[11px] ring-1 ring-line">correct_index</code>{" "}
+              0 tabanlıdır.
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-white p-2.5 text-[10.5px] leading-relaxed text-muted ring-1 ring-line">
+{`prompt,option_a,option_b,option_c,option_d,correct,explanation,position
+"¿Cómo ___?",te llamas,te llama,se llamas,llamas,A,,1`}
+            </pre>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#d5d5dd] bg-[#fcfcfe] px-4 py-3 transition hover:border-accent/50">
+            <Upload className="size-4 text-faint" />
+            <span className="text-[12.5px] text-muted">CSV veya JSON dosyası seç (maks. 2 MB)</span>
+            <input
+              type="file"
+              accept=".csv,.json,text/csv,application/json,text/plain"
+              className="hidden"
+              onChange={(event) => void handleImportFile(event.target.files?.[0])}
+            />
+          </label>
+
+          <Field label="Ya da içeriği yapıştır" hint="CSV satırları veya JSON dizisi">
+            <textarea
+              className="field min-h-[160px] resize-y font-mono text-[12px]"
+              placeholder={'[{"prompt": "Completa: «Yo ___ de Turquía.»", "options": ["estoy", "soy", "es", "eres"], "correct": "B"}]'}
+              value={importText}
+              onChange={(event) => {
+                setImportText(event.target.value);
+                setImportError(null);
+              }}
+            />
+          </Field>
+
+          {importText.trim() && (
+            <div className="rounded-xl border border-line p-3.5">
+              <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
+                <Badge tone="accent">{importPreview.format === "json" ? "JSON" : "CSV"}</Badge>
+                <span className="font-medium text-success">
+                  {importPreview.rows.length} aktarılabilir
+                </span>
+                {importPreview.issues.length > 0 && (
+                  <span className="font-medium text-danger">
+                    {importPreview.issues.length} hatalı
+                  </span>
+                )}
+                {importPreview.duplicates > 0 && (
+                  <span className="font-medium text-warning">
+                    {importPreview.duplicates} zaten mevcut
+                  </span>
+                )}
+              </div>
+
+              {importPreview.issues.length > 0 && (
+                <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-[11.5px] text-danger">
+                  {importPreview.issues.slice(0, 8).map((issue) => (
+                    <li key={`${issue.row}-${issue.message}`}>
+                      Satır {issue.row}: {issue.message}
+                    </li>
+                  ))}
+                  {importPreview.issues.length > 8 && (
+                    <li>… ve {importPreview.issues.length - 8} hata daha</li>
+                  )}
+                </ul>
+              )}
+
+              {importPreview.rows.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {importPreview.rows.slice(0, 4).map((row, index) => (
+                    <li
+                      key={`${row.prompt}-${index}`}
+                      className="rounded-lg bg-[#fcfcfe] px-2.5 py-2 text-[11.5px] ring-1 ring-line"
+                    >
+                      <span className="font-medium">{row.prompt}</span>
+                      <span className="text-faint">
+                        {" "}· doğru: {String.fromCharCode(65 + row.correct_index)} ·{" "}
+                        {row.options.length} seçenek · sıra {row.position}
+                      </span>
+                    </li>
+                  ))}
+                  {importPreview.rows.length > 4 && (
+                    <li className="text-[11px] text-faint">
+                      … ve {importPreview.rows.length - 4} soru daha
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
 

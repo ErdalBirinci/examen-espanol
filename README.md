@@ -85,6 +85,37 @@ böylece `/adminpanel` gibi adresler doğrudan açılır.
 Adayların yönetim paneline erişimi yoktur; admin rotaları oturum + `profiles.role = 'admin'`
 kontrolünden geçer, tüm veri erişimi RLS ile korunur.
 
+### Toplu soru içe aktarma
+
+**Test Soruları → Toplu içe aktar** ile seçili seviyeye CSV veya JSON dosyası yüklenebilir ya da içerik
+doğrudan yapıştırılabilir. Aktarım öncesi önizleme; geçerli, hatalı ve zaten var olan soruları gösterir;
+yalnızca geçerli satırlar eklenir (yinelenen soru metinleri atlanır).
+
+CSV başlıkları (Türkçe başlıklar da tanınır: `soru, secenek_a…, dogru, aciklama, sira`):
+
+```csv
+prompt,option_a,option_b,option_c,option_d,correct,explanation,position
+"¿Cómo ___?",te llamas,te llama,se llamas,llamas,A,,1
+```
+
+JSON biçimi (dizi ya da `{ "questions": [...] }`):
+
+```json
+[
+  {
+    "prompt": "¿Cómo ___?",
+    "options": ["te llamas", "te llama", "se llamas", "llamas"],
+    "correct": "A",
+    "explanation": "Saludo básico",
+    "position": 1
+  }
+]
+```
+
+- `correct` alanı A–F harfi veya 1–6 numarası kabul eder; JSON'da `correct_index` kullanılırsa 0 tabanlıdır.
+- `position` verilmezse mevcut soruların ardına sırayla eklenir.
+- En az iki seçenek gerekir; boş seçenek içeren satırlar reddedilir.
+
 ## 5. Sınav akışı
 
 1. Aday ad, soyad ve e-posta girer, seviyesini seçer (A1–C2).
