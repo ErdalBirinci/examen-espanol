@@ -100,7 +100,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_list_candidates() from public;
+revoke all on function public.admin_list_candidates() from public, anon;
 grant execute on function public.admin_list_candidates() to authenticated;
 
 -- ------------------------------------------------------------
@@ -235,7 +235,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_candidate_detail(text) from public;
+revoke all on function public.admin_candidate_detail(text) from public, anon;
 grant execute on function public.admin_candidate_detail(text) to authenticated;
 
 -- ------------------------------------------------------------
@@ -288,7 +288,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_set_candidate_disabled(text, boolean) from public;
+revoke all on function public.admin_set_candidate_disabled(text, boolean) from public, anon;
 grant execute on function public.admin_set_candidate_disabled(text, boolean) to authenticated;
 
 -- ------------------------------------------------------------
@@ -331,7 +331,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_revoke_candidate_sessions(text) from public;
+revoke all on function public.admin_revoke_candidate_sessions(text) from public, anon;
 grant execute on function public.admin_revoke_candidate_sessions(text) to authenticated;
 
 -- ------------------------------------------------------------
@@ -374,5 +374,5 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_delete_candidate(text) from public;
+revoke all on function public.admin_delete_candidate(text) from public, anon;
 grant execute on function public.admin_delete_candidate(text) to authenticated;
