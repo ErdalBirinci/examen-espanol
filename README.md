@@ -83,6 +83,7 @@ The admin console covers the complete exam lifecycle:
 | **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
 | **Exam results** | Review answers, listening transcripts, writing samples and speaking recordings; assign section scores; publish results; trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
+| **Answer key** | One-page answer key per level with the correct option, answer text and grading note; printable and downloadable as CSV |
 | **Listening** | Upload audio (up to 50 MB), title, play limit, ordering and grading transcript |
 | **Writing** | One prompt per level with a minimum word count |
 | **Speaking** | One prompt per level with preparation and speaking times |
@@ -351,6 +352,7 @@ If the secrets are missing, grading still works. The admin console shows a confi
 | `/adminpanel/atamalar` | Candidate exam assignments |
 | `/adminpanel/sonuclar` | Exam results and grading |
 | `/adminpanel/test` | Multiple-choice questions |
+| `/adminpanel/cevap-anahtari` | Level-scoped answer key with grading notes |
 | `/adminpanel/dinleme` | Listening content |
 | `/adminpanel/yazma` | Writing prompts |
 | `/adminpanel/konusma` | Speaking prompts |

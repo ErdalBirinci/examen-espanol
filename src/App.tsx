@@ -16,6 +16,7 @@ import Listening from "./admin/Listening";
 import Writing from "./admin/Writing";
 import Speaking from "./admin/Speaking";
 import Assignments from "./admin/Assignments";
+import AnswerKey from "./admin/AnswerKey";
 import Scene3D from "./components/Scene3D";
 import { isSupabaseConfigured } from "./lib/config";
 
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="panel" element={<Overview />} />
               <Route path="sonuclar" element={<Attempts />} />
               <Route path="test" element={<Questions />} />
+              <Route path="cevap-anahtari" element={<AnswerKey />} />
               <Route path="dinleme" element={<Listening />} />
               <Route path="yazma" element={<Writing />} />
               <Route path="konusma" element={<Speaking />} />

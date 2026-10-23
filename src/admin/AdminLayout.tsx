@@ -4,6 +4,7 @@ import {
   CalendarClock,
   ClipboardList,
   Headphones,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -21,6 +22,7 @@ const NAV = [
   { to: "/adminpanel/atamalar", label: "Aday Sınavları", icon: CalendarClock },
   { to: "/adminpanel/sonuclar", label: "Sınav Sonuçları", icon: ClipboardList },
   { to: "/adminpanel/test", label: "Test Soruları", icon: ListChecks },
+  { to: "/adminpanel/cevap-anahtari", label: "Cevap Anahtarı", icon: KeyRound },
   { to: "/adminpanel/dinleme", label: "Dinleme", icon: Headphones },
   { to: "/adminpanel/yazma", label: "Yazma", icon: PenLine },
   { to: "/adminpanel/konusma", label: "Konuşma", icon: Mic },
@@ -102,7 +104,7 @@ export default function AdminLayout({
 
   return (
     <div className="app-page min-h-dvh">
-      <div className="sticky top-0 z-40 px-3 pt-3 lg:hidden">
+      <div className="sticky top-0 z-40 px-3 pt-3 print:hidden lg:hidden">
         <div className="premium-nav flex h-14 items-center justify-between px-3">
           <Link to="/adminpanel/panel" className="focus-ring rounded-full p-1">
             <Brand compact />
@@ -147,8 +149,8 @@ export default function AdminLayout({
         </div>
       )}
 
-      <div className="mx-auto flex max-w-[1480px]">
-        <aside className="sticky top-0 hidden h-dvh w-[276px] shrink-0 p-3 lg:block">
+      <div className="mx-auto flex max-w-[1480px] print:max-w-none">
+        <aside className="sticky top-0 hidden h-dvh w-[276px] shrink-0 p-3 print:hidden lg:block">
           <div className="admin-surface flex h-[calc(100dvh-1.5rem)] flex-col rounded-[1.75rem] p-4">
             <Link to="/adminpanel/panel" className="mb-7 block px-2 pt-1">
               <Brand />
@@ -168,7 +170,7 @@ export default function AdminLayout({
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="min-w-0 flex-1 px-4 py-6 print:px-0 print:py-0 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-5xl">{children}</div>
         </main>
       </div>
