@@ -25,7 +25,7 @@ puanlama `attempts` tablosundaki `score_attempt` trigger'ı ile sunucuda hesapla
 1. [supabase.com](https://supabase.com) üzerinde ücretsiz bir proje oluştur.
 2. **SQL Editor** → [`supabase/schema.sql`](supabase/schema.sql) dosyasının tamamını çalıştır. Ardından
    `supabase/migrations/` altındaki dosyaları sırayla uygula (süre ayarları, sunucu taraflı gönderim,
-   sonuç sorgulama ve dinleme transkripti). Hepsi idempotent: tekrar çalıştırmak güvenli.
+   sonuç sorgulama, üyelik/atamalar ve sertifikalar). Hepsi idempotent: tekrar çalıştırmak güvenli.
 3. **Authentication → Users → Add user** ile yönetici hesabını oluştur:
    - E-posta: `<kullanıcı_adı>@examen.local` (örn. `yonetici@examen.local`)
    - Şifre: kendi belirlediğin güçlü şifre
@@ -138,12 +138,21 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
   son tarih ve tekrar gönderim sunucuda kontrol edilir. `attempts.assignment_id` benzersizdir.
 - Supabase Auth → Sign In / Providers bölümünde **Confirm email** kapatılmıştır; aksi halde adaylar
   onay e-postası gelmeden giriş yapamaz. İstersen açıp kendi SMTP sunucunu bağlayabilirsin.
+- **Şifremi unuttum:** Giriş ekranındaki bağlantı `/cuenta/recuperar` sayfasına, e-postadaki bağlantı
+  `/cuenta/restablecer` sayfasına gider. Supabase Auth → URL Configuration bölümünde Site URL
+  `https://erdalbirinci.github.io/examen-espanol/` olmalı; Redirect URLs listesinde
+  `https://erdalbirinci.github.io/examen-espanol/cuenta/restablecer` ve yerel geliştirme adresleri
+  (`http://localhost:5173/**`) bulunmalıdır. Supabase'in varsayılan e-posta servisi saatte çok az
+  e-posta gönderir; gerçek kullanımda Authentication → Emails → SMTP Settings altından kendi SMTP
+  sağlayıcını (ör. Resend) bağla.
 - Eski herkese açık `/examen/A1` akışı kaldırıldı; sınav adresi artık atama kimliği içerir
   (`/examen/<assignment-id>`).
 
 ## 6. Sınav akışı
 
-1. Aday ad, soyad ve e-posta girer, seviyesini seçer (A1–C2).
+1. Aday giriş yapar ve kendisine atanan sınavı açar. Başlangıç ekranında dört bölümden istediğini
+   seçebilir; sınav sırasında üstteki bölüm çubuğundan bölümler arasında geçiş yapabilir. Cevaplar
+   bölüm sırasından bağımsız olarak korunur.
 2. **Vocabulario y Gramática:** 50 çoktan seçmeli soru (seviyede kaç soru varsa o kadar gösterilir).
 3. **Comprensión Auditiva:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
 4. **Expresión Escrita:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
@@ -161,7 +170,19 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 10. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
     görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
 
-## 7. Notlar ve sınırlar
+## 7. Sertifikalar
+
+- Sertifika yalnızca değerlendirmesi tamamlanmış, sonuçları adaya yayınlanmış ve **60/100 veya üzeri**
+  puan alan sınavlar için üretilir. Puanlar sonuç ekranında gizliyse sertifika da verilmez.
+- Sertifika kodu `issue_certificate` RPC'si ile rastgele üretilir; e-posta veya cevap verisi
+  paylaşılmaz. `/certificado/<kod>` adresi herkese açık doğrulama sayfasıdır ve `get_certificate`
+  RPC'siyle yalnızca sertifika alanlarını döner.
+- Sonuç ekranındaki sertifika kartından **PDF**, **PNG** indirilebilir; LinkedIn, X, WhatsApp ve
+  Facebook paylaşımı ile panoya kopyalama sunulur. PDF, yüksek çözünürlüklü sertifika görselini tek
+  sayfalık A4 yatay PDF'e gömen bağımlılıksız bir yazıcıyla üretilir.
+- Migration: [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
+
+## 8. Notlar ve sınırlar
 
 - Dinleme sesleri herkese açık okunur (aday dinleyebilsin diye); konuşma kayıtları **özel** kovadadır,
   panelde imzalı (geçici) bağlantı ile açılır. Dinleme hakkı (`max_plays`) istemcide sayılır; dosya

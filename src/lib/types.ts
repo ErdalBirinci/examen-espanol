@@ -155,3 +155,13 @@ export interface AttemptResult {
   total_score: number | null;
   results_visible?: boolean;
 }
+
+export interface CertificateRecord {
+  code: string;
+  full_name: string;
+  level: Level;
+  total_score: number;
+  submitted_at: string;
+  reference: string;
+  issued_at: string;
+}

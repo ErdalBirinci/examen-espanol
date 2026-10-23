@@ -265,6 +265,14 @@ export default function Welcome() {
                         required
                       />
                     </Field>
+                    <div className="-mt-1 flex justify-end">
+                      <Link
+                        to="/cuenta/recuperar"
+                        className="text-[12px] font-medium text-accent-ink underline-offset-2 hover:underline"
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </Link>
+                    </div>
                     <Button type="submit" size="lg" className="w-full" loading={busy}>
                       Entrar
                     </Button>

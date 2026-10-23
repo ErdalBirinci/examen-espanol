@@ -11,7 +11,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button, Notice, Spinner } from "../components/ui";
-import { ExamShell, SECTION_LABELS } from "./Shell";
+import { ExamShell, SECTION_LABELS, SECTION_STAGES, type SectionStage } from "./Shell";
 import TestStep from "./TestStep";
 import ListeningStep from "./ListeningStep";
 import WritingStep from "./WritingStep";
@@ -42,6 +42,11 @@ interface Draft {
   listeningAnswers: Record<string, string>;
   writing: string;
   startedAt: number | null;
+  stage?: Stage;
+}
+
+function isSectionStage(value: unknown): value is SectionStage {
+  return typeof value === "string" && (SECTION_STAGES as string[]).includes(value);
 }
 
 export default function ExamPage() {
@@ -59,6 +64,7 @@ export default function ExamPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("intro");
+  const [startSection, setStartSection] = useState<SectionStage>("test");
 
   const [mcAnswers, setMcAnswers] = useState<Record<string, number>>({});
   const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
@@ -153,6 +159,10 @@ export default function ExamPage() {
           if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
           if (typeof draft.writing === "string") setWriting(draft.writing);
           if (typeof draft.startedAt === "number") setStartedAt(draft.startedAt);
+          if (isSectionStage(draft.stage) || draft.stage === "review") {
+            setStage(draft.stage);
+            if (isSectionStage(draft.stage)) setStartSection(draft.stage);
+          }
         }
       } catch {
         /* ignore corrupt drafts */
@@ -191,7 +201,13 @@ export default function ExamPage() {
     // Never write before the restore above has run, otherwise the empty initial
     // state would wipe the saved draft on every reload.
     if (!draftKey || !hydrated || stage === "done") return;
-    const draft: Draft = { mcAnswers, listeningAnswers, writing, startedAt };
+    const draft: Draft = {
+      mcAnswers,
+      listeningAnswers,
+      writing,
+      startedAt,
+      stage: stage === "intro" ? undefined : stage,
+    };
     localStorage.setItem(draftKey, JSON.stringify(draft));
   }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, startedAt, stage]);
 
@@ -237,7 +253,7 @@ export default function ExamPage() {
     setStartedAt(new Date(snapshot.started_at).getTime());
   }
 
-  async function beginExam() {
+  async function beginExam(section: SectionStage) {
     if (expired || !candidate || !level || draftBusy) return;
     setDraftBusy(true);
     try {
@@ -256,11 +272,11 @@ export default function ExamPage() {
       setSubmitError(errorMessage(error));
     } finally {
       setDraftBusy(false);
-      setStage("test");
+      setStage(section);
     }
   }
 
-  async function handleResume(code: string, email: string) {
+  async function handleResume(code: string, email: string, section: SectionStage) {
     if (!level || draftBusy) return;
     setDraftBusy(true);
     setResumeError(null);
@@ -276,7 +292,7 @@ export default function ExamPage() {
       } catch {
         /* storage can be unavailable */
       }
-      setStage("test");
+      setStage(section);
     } catch (error) {
       setResumeError(errorMessage(error));
     } finally {
@@ -384,16 +400,23 @@ export default function ExamPage() {
         draftBusy={draftBusy}
         resumeError={resumeError}
         draftCode={draftCode}
+        startSection={startSection}
+        onSelectStart={setStartSection}
         onRetry={() => void fetchBundle()}
-        onStart={() => void beginExam()}
-        onResume={(code, email) => void handleResume(code, email)}
+        onStart={() => void beginExam(startSection)}
+        onResume={(code, email) => void handleResume(code, email, startSection)}
         onSubmit={() => void handleSubmit()}
       />
     );
   }
 
   return (
-    <ExamShell level={level} activeIndex={activeIndex} remainingSeconds={remainingSeconds ?? undefined}>
+    <ExamShell
+      level={level}
+      activeIndex={activeIndex}
+      remainingSeconds={remainingSeconds ?? undefined}
+      onSelectSection={(index) => setStage(SECTION_STAGES[index])}
+    >
       {loading && !bundle ? (
         <div className="flex flex-col items-center gap-3 py-24 text-muted">
           <Spinner className="size-6" />
@@ -488,6 +511,8 @@ function IntroScreen({
   draftBusy,
   resumeError,
   draftCode,
+  startSection,
+  onSelectStart,
   onRetry,
   onStart,
   onResume,
@@ -505,6 +530,8 @@ function IntroScreen({
   draftBusy: boolean;
   resumeError: string | null;
   draftCode: string | null;
+  startSection: SectionStage;
+  onSelectStart: (stage: SectionStage) => void;
   onRetry: () => void;
   onStart: () => void;
   onResume: (code: string, email: string) => void;
@@ -514,20 +541,28 @@ function IntroScreen({
   const [resumeOpen, setResumeOpen] = useState(false);
   const [resumeCode, setResumeCode] = useState("");
   const [resumeEmail, setResumeEmail] = useState(candidate.email);
-  const sections = [
+  const sections: {
+    stage: SectionStage;
+    icon: typeof ListChecks;
+    title: string;
+    detail: string;
+  }[] = [
     {
+      stage: "test",
       icon: ListChecks,
       title: "Vocabulario y Gramática",
       detail: `${bundle?.questions.length ?? "—"} preguntas`,
     },
     {
+      stage: "listening",
       icon: Headphones,
       title: "Comprensión Auditiva",
       detail: `${bundle?.listening.length ?? "—"} pistas`,
     },
-    { icon: PenLine, title: "Expresión Escrita", detail: "1 composición" },
-    { icon: Mic, title: "Expresión oral", detail: "1 grabación" },
+    { stage: "writing", icon: PenLine, title: "Expresión Escrita", detail: "1 composición" },
+    { stage: "speaking", icon: Mic, title: "Expresión oral", detail: "1 grabación" },
   ];
+  const selectedSection = sections.find((section) => section.stage === startSection) ?? sections[0];
 
   return (
     <ExamShell level={level} activeIndex={0}>
@@ -557,22 +592,52 @@ function IntroScreen({
           </span>
         </h1>
         <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted">
-          El examen tiene cuatro secciones y puedes avanzar a tu ritmo. Tu progreso se guarda en este
-          dispositivo hasta que lo envíes.
+          El examen tiene cuatro secciones y puedes empezar por la que prefieras. Cambia de sección
+          cuando quieras desde la cabecera; tu progreso se guarda hasta que lo envíes.
         </p>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {sections.map(({ icon: Icon, title, detail }) => (
-            <div key={title} className="card flex items-center gap-4 p-4.5">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
-                <Icon className="size-4.5" strokeWidth={1.8} />
-              </div>
-              <div>
-                <p className="text-[13.5px] font-semibold">{title}</p>
-                <p className="text-[12px] text-muted">{detail}</p>
-              </div>
-            </div>
-          ))}
+        <p className="mt-8 text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+          Elige una sección para empezar
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {sections.map(({ stage, icon: Icon, title, detail }) => {
+            const selected = startSection === stage;
+            return (
+              <button
+                key={stage}
+                type="button"
+                onClick={() => onSelectStart(stage)}
+                aria-pressed={selected}
+                className={`focus-ring flex items-center gap-4 rounded-2xl border p-4.5 text-left transition ${
+                  selected
+                    ? "border-[#9cc4f4] bg-accent-soft shadow-[0_10px_30px_-24px_rgba(0,113,227,0.8)]"
+                    : "border-line bg-white hover:border-[#cfd9e8] hover:bg-[#fcfdff]"
+                }`}
+              >
+                <div
+                  className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                    selected ? "bg-white text-accent" : "bg-accent-soft text-accent"
+                  }`}
+                >
+                  <Icon className="size-4.5" strokeWidth={1.8} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold">{title}</p>
+                  <p className="text-[12px] text-muted">{detail}</p>
+                </div>
+                <span
+                  className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
+                    selected
+                      ? "border-accent bg-accent text-white"
+                      : "border-[#d4d4da] bg-white text-transparent"
+                  }`}
+                  aria-hidden
+                >
+                  <CheckCircle2 className="size-3.5" strokeWidth={2.5} />
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {error && (
@@ -614,7 +679,9 @@ function IntroScreen({
             </Button>
           ) : (
             <Button size="lg" onClick={onStart} disabled={loading} icon={<ArrowRight className="size-4" />}>
-              {loading ? "Preparando el examen…" : "Comenzar"}
+              {loading
+                ? "Preparando el examen…"
+                : `Comenzar por ${selectedSection.title}`}
             </Button>
           )}
           {error && (
@@ -632,7 +699,13 @@ function IntroScreen({
         )}
 
         <div className="mt-5">
-          {!resumeOpen ? (
+          {remainingSeconds === null && (
+          <p className="mt-3 text-[11.5px] text-faint">
+            Puedes cambiar de sección en cualquier momento desde la cabecera del examen.
+          </p>
+        )}
+
+        {!resumeOpen ? (
             <button
               type="button"
               onClick={() => setResumeOpen(true)}

@@ -1,10 +1,12 @@
 import { useEffect } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import Welcome from "./exam/Welcome";
 import ExamPage from "./exam/ExamPage";
 import ResultPage from "./exam/ResultPage";
 import CandidatePortal from "./exam/CandidatePortal";
+import CertificatePage from "./exam/CertificatePage";
+import { RequestPasswordReset, ResetPassword } from "./exam/PasswordRecovery";
 import AdminLogin from "./admin/AdminLogin";
 import AdminGate from "./admin/AdminGate";
 import Overview from "./admin/Overview";
@@ -18,18 +20,35 @@ import { isSupabaseConfigured } from "./lib/config";
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  // A recovery link may fall back to the Site URL instead of the configured
+  // redirect. Move those hash tokens to the reset screen before they are lost.
+  useEffect(() => {
+    if (location.pathname === "/cuenta/restablecer") return;
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    if (hash.get("type") === "recovery" || hash.get("error_description")) {
+      navigate(
+        { pathname: "/cuenta/restablecer", hash: location.hash },
+        { replace: true },
+      );
+    }
+  }, [location.pathname, location.hash, navigate]);
 
   return (
     <>
       <Routes>
         <Route path="/" element={<Welcome />} />
         <Route path="/cuenta" element={<CandidatePortal />} />
+        <Route path="/cuenta/recuperar" element={<RequestPasswordReset />} />
+        <Route path="/cuenta/restablecer" element={<ResetPassword />} />
         <Route path="/examen/:assignmentId" element={<ExamPage />} />
         <Route path="/resultado" element={<ResultPage />} />
+        <Route path="/certificado/:code" element={<CertificatePage />} />
 
         <Route path="/adminpanel">
           <Route index element={<AdminLogin />} />

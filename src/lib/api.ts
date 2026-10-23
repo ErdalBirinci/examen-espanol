@@ -9,6 +9,7 @@ import type {
   Attempt,
   AttemptResult,
   Candidate,
+  CertificateRecord,
   ContentStats,
   ExamBundle,
   ExamSettings,
@@ -224,6 +225,33 @@ export async function deleteExamDraft(code: string, email: string): Promise<void
   });
 }
 
+export async function issueCertificate(
+  reference: string,
+  email: string,
+): Promise<CertificateRecord> {
+  const { data, error } = await supabase.rpc("issue_certificate", {
+    p_code: reference.trim().toLowerCase(),
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("CERTIFICATE_NOT_FOUND")) fail("Sertifika için sınav kaydı bulunamadı.");
+    if (message.includes("CERTIFICATE_HIDDEN")) fail("Sonuçlar henüz yayınlanmadı.");
+    if (message.includes("CERTIFICATE_NOT_READY")) fail("Sertifika için değerlendirme tamamlanmadı.");
+    if (message.includes("CERTIFICATE_NOT_ELIGIBLE")) fail("Sertifika için gereken puan sağlanmadı.");
+    fail(`Sertifika oluşturulamadı: ${message}`);
+  }
+  return data as CertificateRecord;
+}
+
+export async function getCertificate(code: string): Promise<CertificateRecord | null> {
+  const { data, error } = await supabase.rpc("get_certificate", {
+    p_certificate: code.trim().toLowerCase(),
+  });
+  if (error) fail(`Sertifika doğrulanamadı: ${error.message}`);
+  return (data as CertificateRecord | null) ?? null;
+}
+
 export async function lookupAttemptResult(code: string, email: string): Promise<AttemptResult | null> {
   const { data, error } = await supabase.rpc("lookup_attempt_result", {
     p_code: code.trim().toLowerCase(),
@@ -319,6 +347,105 @@ export async function signInCandidate(email: string, password: string): Promise<
 
 export async function signOutCandidate(): Promise<void> {
   await supabase.auth.signOut();
+}
+
+const RECOVERY_FLAG = "examen-espanol:recovery";
+
+function passwordResetRedirectUrl(): string {
+  const base = import.meta.env.BASE_URL || "/";
+  return `${window.location.origin}${base.endsWith("/") ? base : `${base}/`}cuenta/restablecer`;
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: passwordResetRedirectUrl(),
+  });
+  if (error) {
+    if (/rate limit|too many/i.test(error.message)) {
+      fail("Çok fazla e-posta isteği gönderildi. Birkaç dakika sonra tekrar dene.");
+    }
+    fail(`Şifre sıfırlama e-postası gönderilemedi: ${error.message}`);
+  }
+}
+
+/**
+ * Recovery links land with either hash tokens (implicit flow) or a PKCE code.
+ * The app uses detectSessionInUrl: false, so the reset screen restores the
+ * temporary session explicitly here.
+ */
+export async function restoreRecoverySession(): Promise<boolean> {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  const authError = hash.get("error_description") || query.get("error_description");
+  if (authError) fail(`Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş: ${authError}`);
+
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+  if (hash.get("type") === "recovery" && accessToken && refreshToken) {
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) fail("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.");
+    markRecoverySession();
+    clearRecoveryParams();
+    return true;
+  }
+
+  const code = query.get("code");
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) fail("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.");
+    markRecoverySession();
+    clearRecoveryParams();
+    return true;
+  }
+
+  const { data } = await supabase.auth.getSession();
+  return Boolean(data.session) && hasRecoverySession();
+}
+
+function markRecoverySession() {
+  try {
+    sessionStorage.setItem(RECOVERY_FLAG, "1");
+  } catch {
+    /* storage can be unavailable */
+  }
+}
+
+function hasRecoverySession(): boolean {
+  try {
+    return sessionStorage.getItem(RECOVERY_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearRecoverySession() {
+  try {
+    sessionStorage.removeItem(RECOVERY_FLAG);
+  } catch {
+    /* storage can be unavailable */
+  }
+}
+
+function clearRecoveryParams() {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.searchParams.delete("code");
+  url.searchParams.delete("error");
+  url.searchParams.delete("error_description");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
+}
+
+export async function updateCandidatePassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    if (/weak|at least|password/i.test(error.message)) {
+      fail("Şifre güncellenemedi. En az 8 karakterlik daha güçlü bir şifre dene.");
+    }
+    fail(`Şifre güncellenemedi: ${error.message}`);
+  }
 }
 
 export async function listMyAssignments(): Promise<Assignment[]> {

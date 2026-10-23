@@ -10,15 +10,23 @@ export const SECTION_LABELS = [
   "Oral",
 ];
 
+export const SECTION_SHORT_LABELS = ["Gramática", "Auditiva", "Escrita", "Oral"];
+
+export type SectionStage = "test" | "listening" | "writing" | "speaking";
+
+export const SECTION_STAGES: SectionStage[] = ["test", "listening", "writing", "speaking"];
+
 export function ExamShell({
   level,
   activeIndex,
   remainingSeconds,
+  onSelectSection,
   children,
 }: {
   level: Level;
   activeIndex: number;
   remainingSeconds?: number;
+  onSelectSection?: (index: number) => void;
   children: ReactNode;
 }) {
   return (
@@ -35,28 +43,38 @@ export function ExamShell({
             </span>
           </div>
 
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Progreso del examen">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Secciones del examen">
             {SECTION_LABELS.map((label, index) => {
-              const done = index < activeIndex;
               const active = index === activeIndex;
-              return (
-                <div key={label} className="flex items-center gap-1">
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium whitespace-nowrap transition",
-                      active && "bg-ink text-white",
-                      done && "text-success",
-                      !active && !done && "text-faint",
-                    )}
-                  >
-                    {done ? (
-                      <Check className="size-3" strokeWidth={3} />
-                    ) : (
-                      <span className="text-[10px] tabular-nums">{index + 1}</span>
-                    )}
-                    {label}
+              const classes = cn(
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium whitespace-nowrap transition",
+                active && "bg-ink text-white",
+                !active && onSelectSection && "text-muted hover:bg-[#f2f2f5] hover:text-ink",
+                !active && !onSelectSection && "text-faint",
+              );
+              const content = (
+                <>
+                  <span className={cn("text-[10px] tabular-nums", active && "text-white/70")}>
+                    {index + 1}
                   </span>
-                </div>
+                  {label}
+                  {active && <Check className="size-3" strokeWidth={3} />}
+                </>
+              );
+              return onSelectSection ? (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onSelectSection(index)}
+                  aria-current={active ? "step" : undefined}
+                  className={cn("focus-ring", classes)}
+                >
+                  {content}
+                </button>
+              ) : (
+                <span key={label} className={classes} aria-current={active ? "step" : undefined}>
+                  {content}
+                </span>
               );
             })}
           </nav>
@@ -68,6 +86,30 @@ export function ExamShell({
             </span>
           </div>
         </div>
+
+        {onSelectSection && (
+          <div className="border-t border-[rgba(29,29,31,0.06)] lg:hidden">
+            <div className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-4 py-2">
+              {SECTION_SHORT_LABELS.map((label, index) => {
+                const active = index === activeIndex;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => onSelectSection(index)}
+                    aria-current={active ? "step" : undefined}
+                    className={cn(
+                      "focus-ring shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-medium transition",
+                      active ? "bg-ink text-white" : "text-muted hover:bg-[#f2f2f5]",
+                    )}
+                  >
+                    {index + 1}. {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-4xl px-5 py-8 pb-24 sm:px-8 sm:py-12">{children}</main>

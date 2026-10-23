@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ClipboardCheck, Clock3, Search } from "lucide-react";
-import { Button, Field, Notice } from "../components/ui";
-import { lookupAttemptResult } from "../lib/api";
-import type { AttemptResult } from "../lib/types";
+import { ArrowLeft, Award, ClipboardCheck, Clock3, Search } from "lucide-react";
+import { Button, Field, Notice, Spinner } from "../components/ui";
+import { CertificatePanel } from "./Certificate";
+import { issueCertificate, lookupAttemptResult } from "../lib/api";
+import { isCertificateEligible } from "../lib/certificate";
+import type { AttemptResult, CertificateRecord } from "../lib/types";
 import { errorMessage } from "../lib/utils";
 
 const CANDIDATE_KEY = "examen-espanol:candidate";
@@ -40,21 +42,44 @@ export default function ResultPage() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [certificate, setCertificate] = useState<CertificateRecord | null>(null);
+  const [certificateError, setCertificateError] = useState<string | null>(null);
+  const [certificateLoading, setCertificateLoading] = useState(false);
+  const lookupSeq = useRef(0);
 
   async function handleLookup(event: FormEvent) {
     event.preventDefault();
+    const sequence = ++lookupSeq.current;
     setLoading(true);
     setError(null);
     setResult(null);
+    setCertificate(null);
+    setCertificateError(null);
+    setCertificateLoading(false);
     try {
       const found = await lookupAttemptResult(code, email);
+      if (sequence !== lookupSeq.current) return;
       setResult(found);
       setSearched(true);
+
+      if (found && isCertificateEligible(found)) {
+        setCertificateLoading(true);
+        try {
+          const issued = await issueCertificate(found.reference, email);
+          if (sequence === lookupSeq.current) setCertificate(issued);
+        } catch (err) {
+          if (sequence === lookupSeq.current) setCertificateError(errorMessage(err));
+        } finally {
+          if (sequence === lookupSeq.current) setCertificateLoading(false);
+        }
+      }
     } catch (err) {
-      setError(errorMessage(err));
-      setSearched(false);
+      if (sequence === lookupSeq.current) {
+        setError(errorMessage(err));
+        setSearched(false);
+      }
     } finally {
-      setLoading(false);
+      if (sequence === lookupSeq.current) setLoading(false);
     }
   }
 
@@ -143,6 +168,35 @@ export default function ResultPage() {
         )}
 
         {result && <ResultCard result={result} />}
+
+        {result && isCertificateEligible(result) && (
+          <>
+            {certificate && <CertificatePanel certificate={certificate} />}
+            {certificateLoading && (
+              <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-[12.5px] text-muted">
+                <Spinner className="size-4" />
+                Preparando tu certificado…
+              </div>
+            )}
+            {certificateError && (
+              <div className="mt-4">
+                <Notice tone="warning">{certificateError}</Notice>
+              </div>
+            )}
+          </>
+        )}
+
+        {result &&
+          result.results_visible !== false &&
+          result.status === "graded" &&
+          result.total_score !== null &&
+          result.total_score < 60 && (
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-line bg-white px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+              <Award className="mt-0.5 size-4 shrink-0 text-faint" />
+              El certificado se emite a partir de 60/100. Puedes consultar con tu centro las opciones
+              para volver a preparar el examen.
+            </div>
+          )}
       </main>
     </div>
   );
