@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import {
   Activity,
   CalendarClock,
+  CalendarRange,
   ChevronRight,
   ClipboardList,
   Clock3,
   FileText,
+  FilterX,
   LogOut,
   Mail,
   RefreshCw,
@@ -34,7 +36,110 @@ import { LevelBadge, PageHeader, Panel } from "./shared";
 
 type StatusFilter = "all" | "active" | "disabled" | "unconfirmed";
 type ActionKind = "toggle" | "reset" | "revoke" | null;
+type ActivityFilter =
+  | "all"
+  | "signup"
+  | "login"
+  | "assignment"
+  | "draft"
+  | "attempt"
+  | "certificate";
+type DatePreset = "all" | "24h" | "7d" | "30d" | "custom";
 type Tone = "success" | "danger" | "warning" | "neutral" | "accent";
+
+const ACTIVITY_OPTIONS: Array<{ value: ActivityFilter; label: string }> = [
+  { value: "all", label: "Tüm aktiviteler" },
+  { value: "signup", label: "Hesap kaydı" },
+  { value: "login", label: "Giriş" },
+  { value: "assignment", label: "Sınav ataması" },
+  { value: "draft", label: "Taslak kaydı" },
+  { value: "attempt", label: "Sınav gönderimi" },
+  { value: "certificate", label: "Sertifika" },
+];
+
+const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
+  { value: "all", label: "Tümü" },
+  { value: "24h", label: "24 saat" },
+  { value: "7d", label: "7 gün" },
+  { value: "30d", label: "30 gün" },
+  { value: "custom", label: "Özel" },
+];
+
+function activityTimestamp(
+  row: ManagedCandidateSummary,
+  activity: ActivityFilter,
+): string | null {
+  switch (activity) {
+    case "signup":
+      return row.created_at;
+    case "login":
+      return row.last_sign_in_at;
+    case "assignment":
+      return row.last_assignment_at;
+    case "draft":
+      return row.last_draft_at;
+    case "attempt":
+      return row.last_attempt_at;
+    case "certificate":
+      return row.last_certificate_at;
+    default:
+      return row.latest_activity ?? row.created_at;
+  }
+}
+
+function timestampValue(value: string | null): number | null {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function dayValue(value: string, endOfDay: boolean): number | null {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = endOfDay
+    ? new Date(year, month - 1, day, 23, 59, 59, 999)
+    : new Date(year, month - 1, day, 0, 0, 0, 0);
+  const time = date.getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function buildDateRange(
+  preset: DatePreset,
+  from: string,
+  to: string,
+): { start: number | null; end: number | null } | null {
+  if (preset === "all") return null;
+
+  if (preset === "custom") {
+    let start = dayValue(from, false);
+    let end = dayValue(to, true);
+    if (start !== null && end !== null && start > end) {
+      [start, end] = [end, start];
+    }
+    return start === null && end === null ? null : { start, end };
+  }
+
+  const now = Date.now();
+  if (preset === "24h") {
+    return { start: now - 24 * 60 * 60 * 1000, end: now };
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (preset === "7d" ? 6 : 29));
+  return { start: start.getTime(), end: now };
+}
+
+function withinRange(
+  value: string | null,
+  range: { start: number | null; end: number | null } | null,
+): boolean {
+  if (!range) return true;
+  const time = timestampValue(value);
+  if (time === null) return false;
+  return (range.start === null || time >= range.start) && (range.end === null || time <= range.end);
+}
 
 function isDisabled(value: { banned_until: string | null }): boolean {
   if (!value.banned_until) return false;
@@ -86,6 +191,10 @@ export default function Users() {
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [activity, setActivity] = useState<ActivityFilter>("all");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [detail, setDetail] = useState<ManagedCandidateDetail | null>(null);
@@ -124,9 +233,14 @@ export default function Users() {
     [rows],
   );
 
+  const dateRange = useMemo(
+    () => buildDateRange(datePreset, fromDate, toDate),
+    [datePreset, fromDate, toDate],
+  );
+
   const visibleRows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       const matchesQuery =
         !needle ||
         row.full_name.toLowerCase().includes(needle) ||
@@ -136,9 +250,33 @@ export default function Users() {
         (status === "active" && !isDisabled(row) && !isUnconfirmed(row)) ||
         (status === "disabled" && isDisabled(row)) ||
         (status === "unconfirmed" && !isDisabled(row) && isUnconfirmed(row));
-      return matchesQuery && matchesStatus;
+      const timestamp = activityTimestamp(row, activity);
+      const matchesActivity = activity === "all" || Boolean(timestamp);
+      const matchesDate = withinRange(timestamp, dateRange);
+      return matchesQuery && matchesStatus && matchesActivity && matchesDate;
     });
-  }, [rows, query, status]);
+
+    return filtered.sort((a, b) => {
+      const first = timestampValue(activityTimestamp(a, activity)) ?? 0;
+      const second = timestampValue(activityTimestamp(b, activity)) ?? 0;
+      return second - first;
+    });
+  }, [rows, query, status, activity, dateRange]);
+
+  const filtersActive =
+    query.trim().length > 0 ||
+    status !== "all" ||
+    activity !== "all" ||
+    datePreset !== "all";
+
+  function clearFilters() {
+    setQuery("");
+    setStatus("all");
+    setActivity("all");
+    setDatePreset("all");
+    setFromDate("");
+    setToDate("");
+  }
 
   const selectedSummary = useMemo(
     () => rows.find((row) => row.email === selectedEmail) ?? null,
@@ -296,31 +434,109 @@ export default function Users() {
         <SummaryTile label="Onay bekleyen" value={counts.unconfirmed} tone="warning" />
       </div>
 
-      <Panel className="mb-4 flex flex-wrap items-center gap-2 p-3">
-        <div className="relative min-w-[210px] flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint" />
-          <input
-            className="field py-2 pl-8 text-[12.5px]"
-            placeholder="İsim veya e-posta ara…"
-            aria-label="Kullanıcı ara"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+      <Panel className="mb-4 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[210px] flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint" />
+            <input
+              className="field py-2 pl-8 text-[12.5px]"
+              placeholder="İsim veya e-posta ara…"
+              aria-label="Kullanıcı ara"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <select
+            className="field w-auto py-2 text-[12.5px]"
+            aria-label="Hesap durumu"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as StatusFilter)}
+          >
+            <option value="all">Tüm durumlar</option>
+            <option value="active">Aktif</option>
+            <option value="disabled">Devre dışı</option>
+            <option value="unconfirmed">Onay bekleyen</option>
+          </select>
+          <span className="px-1 text-[11.5px] text-faint tabular-nums">
+            {visibleRows.length === rows.length
+              ? `${rows.length} kullanıcı`
+              : `${visibleRows.length} / ${rows.length} kullanıcı`}
+          </span>
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              icon={<FilterX className="size-3.5" />}
+            >
+              Temizle
+            </Button>
+          )}
         </div>
-        <select
-          className="field w-auto py-2 text-[12.5px]"
-          aria-label="Hesap durumu"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as StatusFilter)}
-        >
-          <option value="all">Tüm durumlar</option>
-          <option value="active">Aktif</option>
-          <option value="disabled">Devre dışı</option>
-          <option value="unconfirmed">Onay bekleyen</option>
-        </select>
-        <span className="px-1 text-[11.5px] text-faint tabular-nums">
-          {visibleRows.length} kullanıcı
-        </span>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line/70 pt-3">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.1em] text-faint uppercase">
+            <CalendarRange className="size-3.5" />
+            Tarih
+          </span>
+          <div className="inline-flex flex-wrap gap-0.5 rounded-xl border border-white/80 bg-white/50 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+            {DATE_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                aria-pressed={datePreset === preset.value}
+                onClick={() => setDatePreset(preset.value)}
+                className={cn(
+                  "focus-ring rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition",
+                  datePreset === preset.value
+                    ? "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_8px_18px_-14px_rgba(18,35,62,0.9)]"
+                    : "text-muted hover:bg-white/70 hover:text-ink",
+                )}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {datePreset === "custom" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input
+                type="date"
+                className="field w-auto py-1.5 text-[11.5px]"
+                aria-label="Başlangıç tarihi"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(event) => setFromDate(event.target.value)}
+              />
+              <span className="text-faint">–</span>
+              <input
+                type="date"
+                className="field w-auto py-1.5 text-[11.5px]"
+                aria-label="Bitiş tarihi"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(event) => setToDate(event.target.value)}
+              />
+            </div>
+          )}
+
+          <span className="hidden h-4 w-px bg-line sm:block" />
+          <span className="text-[10px] font-semibold tracking-[0.1em] text-faint uppercase">
+            Aktivite
+          </span>
+          <select
+            className="field w-auto py-2 text-[12px]"
+            aria-label="Aktivite türü"
+            value={activity}
+            onChange={(event) => setActivity(event.target.value as ActivityFilter)}
+          >
+            {ACTIVITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </Panel>
 
       {loading ? (
@@ -334,7 +550,7 @@ export default function Users() {
           description={
             rows.length === 0
               ? "Adaylar ana sayfadaki Crear cuenta formuyla kayıt olduğunda burada görünür."
-              : "Arama veya durum filtresini değiştirmeyi dene."
+              : "Arama, durum, tarih veya aktivite filtresini değiştirmeyi dene."
           }
         />
       ) : (

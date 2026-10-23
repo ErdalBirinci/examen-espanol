@@ -566,6 +566,10 @@ export interface ManagedCandidateSummary {
   pending_count: number;
   certificates_count: number;
   latest_activity: string | null;
+  last_assignment_at: string | null;
+  last_draft_at: string | null;
+  last_attempt_at: string | null;
+  last_certificate_at: string | null;
 }
 
 export interface ManagedCandidateAccount {

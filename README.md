@@ -80,7 +80,7 @@ The admin console covers the complete exam lifecycle:
 | Section | What it does |
 | --- | --- |
 | **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
-| **Users** | Registered candidate accounts with lifecycle detail, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
+| **Users** | Registered candidate accounts with lifecycle detail, date-range and activity-type filters, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
 | **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
 | **Exam results** | Review answers, listening transcripts, writing samples and speaking recordings; assign section scores; publish results; trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
@@ -210,6 +210,7 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261028_assignment_settings.sql`](supabase/migrations/20261028_assignment_settings.sql)
    - [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
    - [`20261030_candidate_admin.sql`](supabase/migrations/20261030_candidate_admin.sql)
+   - [`20261031_candidate_activity_filters.sql`](supabase/migrations/20261031_candidate_activity_filters.sql)
 
    The migrations are idempotent and safe to run again.
 4. Create the administrator account in **Authentication → Users → Add user**:
