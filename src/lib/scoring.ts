@@ -1,4 +1,4 @@
-import type { Attempt } from "./types";
+import type { Attempt, AttemptResult } from "./types";
 
 /** Points available in each section of the 50 + 10 + 20 + 20 model. */
 export const SECTION_MAX = {
@@ -57,4 +57,62 @@ export function attemptTotal(attempt: Attempt): number | null {
     return null;
   }
   return Math.round(test * 0.4 + listening * 0.2 + writing * 0.2 + speaking * 0.2);
+}
+
+export interface ResultRow {
+  key: "test" | "listening" | "writing" | "speaking";
+  label: string;
+  score: number | null;
+  max: number;
+  detail: string | null;
+}
+
+/**
+ * Section-by-section view of a published result. New attempts are shown on the
+ * 50 + 10 + 20 + 20 scale, older ones keep their 0–100 section scores.
+ */
+export function resultBreakdown(result: AttemptResult): ResultRow[] {
+  const isNewScale = result.scoring_version >= 2;
+
+  return [
+    {
+      key: "test",
+      label: "Vocabulario y Gramática",
+      score: isNewScale
+        ? result.mc_score ??
+          (result.mc_total ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 50) : null)
+        : result.mc_total
+          ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 100)
+          : null,
+      max: isNewScale ? 50 : 100,
+      detail: `${result.mc_correct ?? 0} de ${result.mc_total ?? 0} correctas`,
+    },
+    {
+      key: "listening",
+      label: "Comprensión Auditiva",
+      score: result.listening_score,
+      max: isNewScale ? 10 : 100,
+      detail:
+        isNewScale && result.listening_total
+          ? `${result.listening_correct ?? 0} de ${result.listening_total} correctas`
+          : null,
+    },
+    {
+      key: "writing",
+      label: "Expresión Escrita",
+      score: result.writing_score,
+      max: isNewScale ? 20 : 100,
+      detail:
+        isNewScale && (result.writing_part1_score !== null || result.writing_part2_score !== null)
+          ? `Tarea 1: ${result.writing_part1_score ?? "—"}/10 · Tarea 2: ${result.writing_part2_score ?? "—"}/10`
+          : null,
+    },
+    {
+      key: "speaking",
+      label: "Expresión Oral",
+      score: result.speaking_score,
+      max: isNewScale ? 20 : 100,
+      detail: null,
+    },
+  ];
 }

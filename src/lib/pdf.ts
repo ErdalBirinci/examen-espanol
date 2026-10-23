@@ -2,9 +2,13 @@
  * Tiny single-page PDF writer for the certificate. The professionally rendered
  * canvas is embedded as one JPEG, so no PDF dependency is needed in the browser.
  */
-export function buildPdfFromJpeg(jpeg: Uint8Array, width: number, height: number): Blob {
-  const pageWidth = 841.89; // A4 landscape, points
-  const pageHeight = 595.28;
+export function buildPdfFromJpeg(
+  jpeg: Uint8Array,
+  width: number,
+  height: number,
+  pageWidth = 841.89, // A4 landscape, points
+  pageHeight = 595.28,
+): Blob {
 
   const chunks: Uint8Array[] = [];
   let length = 0;

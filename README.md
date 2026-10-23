@@ -61,6 +61,7 @@ All screenshots below are from the live GitHub Pages deployment.
 - **Automatic submission.** When time runs out, the current exam is submitted instead of being lost.
 - **Pre-submit review.** A summary shows which sections are complete and which are still missing before final submission.
 - **Result lookup.** A reference code and email are enough to retrieve the candidate's own result summary.
+- **Downloadable report.** A graded result can be saved as an A4 PDF with the section-by-section breakdown (test, listening, writing part 1 and 2, speaking).
 - **Certificates.** Eligible candidates can download a PDF or PNG certificate and share a public verification link.
 
 ### Exam integrity

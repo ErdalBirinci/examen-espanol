@@ -1,11 +1,13 @@
 import { useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Award, ClipboardCheck, Clock3, Search } from "lucide-react";
+import { Award, ClipboardCheck, Clock3, FileDown, Search } from "lucide-react";
 import { Button, Field, Notice, Spinner } from "../components/ui";
 import { BackLink, SiteFooter, SiteHeader } from "../components/SiteHeader";
 import { CertificatePanel } from "./Certificate";
 import { issueCertificate, lookupAttemptResult } from "../lib/api";
 import { isCertificateEligible } from "../lib/certificate";
+import { downloadResultReport } from "../lib/resultReport";
+import { resultBreakdown } from "../lib/scoring";
 import type { AttemptResult, CertificateRecord } from "../lib/types";
 import { errorMessage } from "../lib/utils";
 
@@ -196,45 +198,22 @@ export default function ResultPage() {
 function ResultCard({ result }: { result: AttemptResult }) {
   const hidden = result.results_visible === false;
   const graded = !hidden && result.status === "graded" && result.total_score !== null;
-  const isNewScale = result.scoring_version >= 2;
+  const rows = resultBreakdown(result);
 
-  const rows = [
-    {
-      label: "Vocabulario y Gramática",
-      score: isNewScale
-        ? result.mc_score ??
-          (result.mc_total ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 50) : null)
-        : result.mc_total
-          ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 100)
-          : null,
-      max: isNewScale ? 50 : 100,
-      detail: `${result.mc_correct ?? 0} de ${result.mc_total ?? 0} correctas`,
-    },
-    {
-      label: "Comprensión Auditiva",
-      score: result.listening_score,
-      max: isNewScale ? 10 : 100,
-      detail:
-        isNewScale && result.listening_total
-          ? `${result.listening_correct ?? 0} de ${result.listening_total} correctas`
-          : null,
-    },
-    {
-      label: "Expresión Escrita",
-      score: result.writing_score,
-      max: isNewScale ? 20 : 100,
-      detail:
-        isNewScale && (result.writing_part1_score !== null || result.writing_part2_score !== null)
-          ? `Tarea 1: ${result.writing_part1_score ?? "—"}/10 · Tarea 2: ${result.writing_part2_score ?? "—"}/10`
-          : null,
-    },
-    {
-      label: "Expresión Oral",
-      score: result.speaking_score,
-      max: isNewScale ? 20 : 100,
-      detail: null,
-    },
-  ];
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  async function handleReport() {
+    setReportBusy(true);
+    setReportError(null);
+    try {
+      await downloadResultReport(result);
+    } catch (err) {
+      setReportError(errorMessage(err));
+    } finally {
+      setReportBusy(false);
+    }
+  }
 
   return (
     <section className="anim-rise card mt-6 overflow-hidden">
@@ -319,12 +298,29 @@ function ResultCard({ result }: { result: AttemptResult }) {
       )}
 
       {!hidden && (
-        <div className="border-t border-line px-6 py-4 sm:px-8">
-          <p className="text-[11.5px] leading-relaxed text-faint">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-4 sm:px-8">
+          <p className="max-w-lg text-[11.5px] leading-relaxed text-faint">
             {graded
               ? "La puntuación global suma las cuatro secciones: 50 puntos de vocabulario y gramática, 10 de comprensión auditiva, 20 de expresión escrita y 20 de expresión oral."
               : "Las secciones de expresión se están evaluando manualmente. Cuando el equipo termine, esta misma consulta mostrará la puntuación global."}
           </p>
+          {graded && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void handleReport()}
+              loading={reportBusy}
+              icon={<FileDown className="size-3.5" />}
+            >
+              Descargar informe PDF
+            </Button>
+          )}
+        </div>
+      )}
+
+      {reportError && (
+        <div className="px-6 pb-4 sm:px-8">
+          <Notice tone="danger">{reportError}</Notice>
         </div>
       )}
     </section>
