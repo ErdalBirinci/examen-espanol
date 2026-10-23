@@ -1,110 +1,108 @@
+<div align="center">
+
 # Examen de Español
 
-İspanyolca seviye sınavı: aday kaydı, dört bölümlü sınav (test · dinleme · yazma · konuşma) ve
-içerik/yönetim paneli. Arayüz GitHub Pages üzerinde statik olarak çalışır; veriler Supabase'de tutulur.
+**A complete Spanish proficiency exam platform for language schools and independent exam centres.**
 
-- **Aday arayüzü:** açık, Apple tarzı premium tasarım · İspanyolca
-- **Yönetim paneli:** `/adminpanel` · Türkçe · gerçek oturum doğrulaması
-- **Sınav akışı:** 50 soruluk çoktan seçmeli test → dinleme + transkripsiyon → yazma kompozisyonu → ses kaydı
+Candidates receive personal exam assignments, complete a four-skill assessment in a calm, distraction-free interface, and receive transparent results and verifiable certificates. Administrators manage content, scheduling, grading and publication from a dedicated console.
 
-## Mimari
+[Live site](https://erdalbirinci.github.io/examen-espanol/) · [Admin console](https://erdalbirinci.github.io/examen-espanol/adminpanel) · [Supabase schema](supabase/schema.sql)
 
-| Katman | Teknoloji |
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Postgres_%2B_Auth-3ECF8E?logo=supabase&logoColor=white)
+
+</div>
+
+## Overview
+
+Examen de Español is a static React single-page application backed by Supabase. It is designed for a real assessment workflow rather than a demo quiz: candidates only see exams assigned to their email address, every submission is validated on the server, correct answers never reach the browser, and results stay hidden until an administrator publishes them.
+
+The candidate experience is in Spanish. The administration console is in Turkish, matching the workflow of the exam centre that operates it.
+
+### At a glance
+
+- Six CEFR levels: **A1, A2, B1, B2, C1 and C2**.
+- Four independently scored skills: **vocabulary and grammar, listening, writing and speaking**.
+- Assignment-based access with per-exam duration, due date and result visibility.
+- Server-side submission, duplicate-submission protection and automatic scoring.
+- Resumable exams through a server-side draft.
+- Result lookup by reference code and email.
+- Verifiable certificates for published results of **60/100 or higher**.
+- Responsive, premium UI with optional WebGL backgrounds and reduced-motion support.
+
+## Screenshots
+
+All screenshots below are from the live GitHub Pages deployment.
+
+![Candidate landing page](docs/screenshots/landing-desktop.png)
+
+*The candidate landing page: exam overview, 3D certificate medallion and the candidate sign-in panel.*
+
+| Mobile candidate landing | Mobile result lookup |
+| :---: | :---: |
+| <img src="docs/screenshots/landing-mobile.png" width="330" alt="Mobile candidate landing page"> | <img src="docs/screenshots/result-lookup-mobile.png" width="330" alt="Mobile result lookup page"> |
+
+![Administrator sign-in](docs/screenshots/admin-login.png)
+
+*The administrator sign-in screen. Administrators manage assignments, content, grading and certificates from the console.*
+
+## Features
+
+### Candidate experience
+
+- **Invitation-gated accounts.** Registration is only available to an email address that already has an exam assignment or a previous submission.
+- **Personal dashboard.** Candidates see only their own assignments, with level, note, due date and current status.
+- **Flexible section order.** Candidates can move between the four sections freely; answers are preserved per section.
+- **Autosave and resume.** A server-side draft is written while the exam is in progress. The same browser resumes automatically; another device can continue with the draft code and email.
+- **Visible timer.** The remaining time comes from the server-side start timestamp. The last five minutes turn amber and the last minute turns red.
+- **Automatic submission.** When time runs out, the current exam is submitted instead of being lost.
+- **Pre-submit review.** A summary shows which sections are complete and which are still missing before final submission.
+- **Result lookup.** A reference code and email are enough to retrieve the candidate's own result summary.
+- **Certificates.** Eligible candidates can download a PDF or PNG certificate and share a public verification link.
+
+### Exam integrity
+
+- Correct answers are stored in the private `questions` table. Candidates read only the `questions_public` view, which excludes `correct_index` and explanations.
+- Submission goes through the `submit_attempt` database function, not a direct table insert.
+- The server validates the assignment ID, candidate email, level, due date, answer shapes and file paths before accepting a submission.
+- One assignment can produce only one attempt (`attempts.assignment_id` is unique).
+- A two-minute rate limit prevents accidental duplicate submissions from the same email.
+- Test scoring runs in Postgres. Manual listening, writing and speaking scores are entered by an administrator and the weighted total is calculated server-side.
+- Result fields are hidden by server functions until the assignment's results are published.
+
+### Administration
+
+The admin console covers the complete exam lifecycle:
+
+| Section | What it does |
 | --- | --- |
-| Ön yüz | React 19 + Vite + TypeScript + Tailwind CSS 4 |
-| Hosting | GitHub Pages (`dist/`, SPA fallback `404.html`) |
-| Veritabanı | Supabase Postgres (RLS korumalı) |
-| Ses dosyaları | Supabase Storage (`exam-media`, `exam-recordings`) |
-| Yönetici girişi | Supabase Auth (kullanıcı adı → `kullanıcı@examen.local`) |
+| **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
+| **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
+| **Exam results** | Review answers, listening transcripts, writing samples and speaking recordings; assign section scores; publish results; trigger result emails |
+| **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
+| **Listening** | Upload audio (up to 50 MB), title, play limit, ordering and grading transcript |
+| **Writing** | One prompt per level with a minimum word count |
+| **Speaking** | One prompt per level with preparation and speaking times |
 
-Doğru cevap anahtarları adaylara hiçbir zaman gönderilmez: adaylar `questions_public` görünümünü okur,
-puanlama `attempts` tablosundaki `score_attempt` trigger'ı ile sunucuda hesaplanır.
+Admin routes require a Supabase session whose profile has `role = 'admin'`. All data access is additionally protected by row-level security.
 
-## 1. Supabase kurulumu
+### Content import and export
 
-1. [supabase.com](https://supabase.com) üzerinde ücretsiz bir proje oluştur.
-2. **SQL Editor** → [`supabase/schema.sql`](supabase/schema.sql) dosyasının tamamını çalıştır. Ardından
-   `supabase/migrations/` altındaki dosyaları sırayla uygula (süre ayarları, sunucu taraflı gönderim,
-   sonuç sorgulama, üyelik/atamalar ve sertifikalar). Hepsi idempotent: tekrar çalıştırmak güvenli.
-3. **Authentication → Users → Add user** ile yönetici hesabını oluştur:
-   - E-posta: `<kullanıcı_adı>@examen.local` (örn. `yonetici@examen.local`)
-   - Şifre: kendi belirlediğin güçlü şifre
-   - *Auto Confirm User* seçili olsun
-   - Şifreyi bu depoya veya README'ye yazma.
-4. Aynı dosyanın sonundaki `insert into public.profiles ...` bloğunun yorumunu kaldırıp çalıştır.
-   (Bu, hesabı yönetici rolüne bağlar.)
-5. İsteğe bağlı: [`supabase/seed.sql`](supabase/seed.sql) ile her seviye için 10 örnek soru ve birer
-   yazma/konuşma konusu eklenir. Dinleme seslerini panelden yüklemen gerekir.
-6. **Project Settings → API** altından `Project URL` ve `anon public` anahtarını al.
+**Test questions → Bulk import** accepts CSV or JSON, either as an uploaded file or pasted text. A preview lists valid, invalid and already-existing questions before anything is written. Only valid rows are inserted and duplicate prompt text is skipped.
 
-## 2. Yerel geliştirme
+**Download CSV** exports all questions for the selected level in the same column layout, encoded as UTF-8 with a BOM for Excel compatibility. The file can be edited and re-imported; existing prompts are skipped.
 
-```bash
-npm install
-cp .env.example .env      # URL ve anon key'i gir
-npm run dev
-```
-
-`.env`:
-
-```
-VITE_SUPABASE_URL=https://xxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
-```
-
-Anon key herkese açık olacak şekilde tasarlanmıştır; tüm erişim RLS politikalarıyla sınırlanır.
-`service_role` anahtarını asla ön yüze koyma.
-
-## 3. GitHub Pages yayını
-
-1. Depoyu GitHub'a pushla (varsayılan dal `main`).
-2. **Settings → Secrets and variables → Actions → Variables** altında ekle:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-3. **Settings → Pages → Build and deployment → Source: GitHub Actions** seç.
-4. `.github/workflows/deploy.yml` her `main` push'unda derleyip yayınlar.
-
-Yayın adresi: `https://<kullanıcı>.github.io/<repo>/`
-Yönetim paneli: `https://<kullanıcı>.github.io/<repo>/adminpanel`
-
-Deep link'ler için `postbuild` adımı `dist/index.html` dosyasını `dist/404.html` olarak kopyalar;
-böylece `/adminpanel` gibi adresler doğrudan açılır.
-
-## 4. Yönetim paneli
-
-`/adminpanel` adresinden kullanıcı adı ve şifre ile giriş yapılır. Kullanıcı adı otomatik olarak
-`<kullanıcı_adı>@examen.local` e-postasına eşlenir.
-
-| Bölüm | Ne yapar |
-| --- | --- |
-| Genel Bakış | Toplam sınav, aylık hacim, bekleyen değerlendirme, ortalama test başarısı, içerik tamlık matrisi, seviye süreleri ve JSON yedek |
-| Sınav Sonuçları | Aday cevapları, dinleme transkriptleri, yazma metni, ses kaydı oynatma; dinleme/yazma/konuşma puanlama (0–100), ağırlıklı toplam ve not |
-| Test Soruları | Seviye bazında çoktan seçmeli soru CRUD (4 seçenek, doğru cevap, sıra) |
-| Dinleme | Ses dosyası yükleme (maks. 50 MB), başlık, dinleme hakkı, sıra, değerlendirme transkripti |
-| Yazma | Seviye başına konu metni ve minimum kelime |
-| Konuşma | Seviye başına konu, yönlendirme, süreler |
-
-Adayların yönetim paneline erişimi yoktur; admin rotaları oturum + `profiles.role = 'admin'`
-kontrolünden geçer, tüm veri erişimi RLS ile korunur.
-
-### Toplu soru içe aktarma
-
-**Test Soruları → Toplu içe aktar** ile seçili seviyeye CSV veya JSON dosyası yüklenebilir ya da içerik
-doğrudan yapıştırılabilir. Aktarım öncesi önizleme; geçerli, hatalı ve zaten var olan soruları gösterir;
-yalnızca geçerli satırlar eklenir (yinelenen soru metinleri atlanır).
-
-**CSV indir** butonu seçili seviyedeki tüm soruları, içe aktarmayla aynı sütun düzeninde indirir
-(UTF-8 BOM'lu, Excel ile uyumlu). İndirilen dosya düzenlenip aynı seviyeye yeniden aktarılabilir;
-soru metinleri zaten kayıtlı olduğu için yinelenen satırlar atlanır.
-
-CSV başlıkları (Türkçe başlıklar da tanınır: `soru, secenek_a…, dogru, aciklama, sira`):
+CSV header:
 
 ```csv
 prompt,option_a,option_b,option_c,option_d,correct,explanation,position
 "¿Cómo ___?",te llamas,te llama,se llamas,llamas,A,,1
 ```
 
-JSON biçimi (dizi ya da `{ "questions": [...] }`):
+JSON format:
 
 ```json
 [
@@ -118,100 +116,265 @@ JSON biçimi (dizi ya da `{ "questions": [...] }`):
 ]
 ```
 
-- `correct` alanı A–F harfi veya 1–6 numarası kabul eder; JSON'da `correct_index` kullanılırsa 0 tabanlıdır.
-- `position` verilmezse mevcut soruların ardına sırayla eklenir.
-- En az iki seçenek gerekir; boş seçenek içeren satırlar reddedilir.
+`correct` accepts a letter from A to F or a number from 1 to 6. In JSON, `correct_index` is zero-based. If `position` is omitted, the question is appended after the existing questions. At least two options are required, and rows with empty options are rejected.
 
-## 5. Aday üyeliği ve sınav atamaları
+## Architecture
 
-- Adaylar ana sayfadaki **Crear cuenta** ile e-posta + şifre belirleyerek kayıt olur. Kayıt yalnızca
-  daha önce sınav göndermiş veya kendisine atama yapılmış e-postalarla mümkündür
-  (`check_candidate_email`).
-- Kayıt sonrası aday **/cuenta** panelinde yalnızca kendisine atanan sınavları görür; başka bir
-  atamanın bağlantısını açsa bile sunucu erişimi reddeder (RLS + `candidate_assignments`).
-- Yönetici **Aday Sınavları** sayfasından e-posta, seviye, başlık, not, son tarih, sınav süresi ve
-  sonuç görünürlüğü girerek atama yapar; atamayı silebilir. Süre boş bırakılırsa seviyenin varsayılan
-  süresi (`exam_settings`) kullanılır. Sonuçlar gizliyken aday panelinde "Resultados aún no publicados"
-  görünür ve puanlar sorguda gizlenir; göz simgesiyle sonuçlar sonradan yayınlanabilir. Aday sınavı
-  gönderdikten sonra tekrar giremez.
-- Gönderim `submit_attempt` RPC'sinde atama kimliği ister; atama-e-posta ve atama-seviye eşleşmesi,
-  son tarih ve tekrar gönderim sunucuda kontrol edilir. `attempts.assignment_id` benzersizdir.
-- Supabase Auth → Sign In / Providers bölümünde **Confirm email** kapatılmıştır; aksi halde adaylar
-  onay e-postası gelmeden giriş yapamaz. İstersen açıp kendi SMTP sunucunu bağlayabilirsin.
-- **Şifremi unuttum:** Giriş ekranındaki bağlantı `/cuenta/recuperar` sayfasına, e-postadaki bağlantı
-  `/cuenta/restablecer` sayfasına gider. Supabase Auth → URL Configuration bölümünde Site URL
-  `https://erdalbirinci.github.io/examen-espanol/` olmalı; Redirect URLs listesinde
-  `https://erdalbirinci.github.io/examen-espanol/cuenta/restablecer` ve yerel geliştirme adresleri
-  (`http://localhost:5173/**`) bulunmalıdır. Supabase'in varsayılan e-posta servisi saatte çok az
-  e-posta gönderir; gerçek kullanımda Authentication → Emails → SMTP Settings altından kendi SMTP
-  sağlayıcını (ör. Resend) bağla.
-- Eski herkese açık `/examen/A1` akışı kaldırıldı; sınav adresi artık atama kimliği içerir
-  (`/examen/<assignment-id>`).
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite 6, React Router 7, Tailwind CSS 4, lucide-react |
+| 3D and motion | Three.js, lazy-loaded WebGL scenes, CSS animations, `prefers-reduced-motion` support |
+| Hosting | GitHub Pages, built by GitHub Actions, static SPA with a `404.html` fallback |
+| Database and auth | Supabase Postgres with row-level security, Supabase Auth |
+| File storage | Supabase Storage: public `exam-media` audio, private `exam-recordings` recordings |
+| Scoring | Postgres functions and triggers (`submit_attempt`, `score_attempt`, `issue_certificate`, `get_certificate`) |
+| Optional email | Supabase Edge Function `notify-result` using Resend |
 
-## 6. Sınav akışı
+### Data flow
 
-1. Aday giriş yapar ve kendisine atanan sınavı açar. Başlangıç ekranında dört bölümden istediğini
-   seçebilir; sınav sırasında üstteki bölüm çubuğundan bölümler arasında geçiş yapabilir. Cevaplar
-   bölüm sırasından bağımsız olarak korunur.
-2. **Vocabulario y Gramática:** 50 çoktan seçmeli soru (seviyede kaç soru varsa o kadar gösterilir).
-3. **Comprensión Auditiva:** her ses kaydı en fazla `max_plays` kez dinlenebilir; aday duyduğunu yazar.
-4. **Expresión Escrita:** konu hakkında kompozisyon; kelime sayacı ve minimum kelime uyarısı.
-5. **Expresión oral:** mikrofonla kayıt veya dosya yükleme (maks. 50 MB); önizleme ve değiştirme.
-6. **Süre:** atamada süre girildiyse o süre, girilmediyse seviyenin toplam süresi (`exam_settings`,
-   varsayılan 45–90 dk) kullanılır. Süre üstteki sayaçta görünür; son 5 dakikada sarı, son 1 dakikada
-   kırmızı olur. Süre bitince sınav bulunulan bölümden otomatik gönderilir.
-7. **Özet ekranı:** gönderimden önce dört bölümün durumu ve eksikler listelenir; aday onaylayarak gönderir.
-8. Gönderim `submit_attempt` RPC'siyle yapılır: sunucu isim/e-posta/biçim doğrular, aynı e-posta ile
-   2 dakika içinde ikinci gönderimi engeller ve test puanını hesaplar. Adaya bir referans kodu gösterilir.
-9. **Sunucu taslağı:** sınav başlarken `exam_drafts` kaydı oluşur, cevaplar ~1 saniye gecikmeyle
-    kaydedilir. Aynı tarayıcıda token ile otomatik, başka cihazda **taslak kodu + e-posta** ile giriş
-    sayfasındaki "¿Empezaste en otro dispositivo?" bağlantısından devam edilir. Süre sunucudaki
-    `started_at` üzerinden işler. Gönderimde taslak silinir, 7 günden eski taslaklar temizlenir.
-10. **Sonuç sorgulama:** `/resultado` sayfasında referans kodu + e-posta ile yalnızca kendi puan özeti
-    görüntülenir. Değerlendirme bitmeden bölüm puanları ve genel toplam "—" görünür.
+1. An administrator creates listening, writing and speaking content, then assigns an exam to a candidate email.
+2. The candidate registers or signs in, opens the assigned exam and receives a server-backed draft.
+3. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
+4. Final submission validates the assignment and writes a locked attempt. Multiple-choice answers are scored immediately; the other three sections wait for manual grading.
+5. The administrator reviews the attempt, enters section scores and publishes the result when ready.
+6. The candidate can look up the result and, if eligible, generate a certificate with a public verification code.
 
-## 7. Sertifikalar
+## Exam structure and scoring
 
-- Sertifika yalnızca değerlendirmesi tamamlanmış, sonuçları adaya yayınlanmış ve **60/100 veya üzeri**
-  puan alan sınavlar için üretilir. Puanlar sonuç ekranında gizliyse sertifika da verilmez.
-- Sertifika kodu `issue_certificate` RPC'si ile rastgele üretilir; e-posta veya cevap verisi
-  paylaşılmaz. `/certificado/<kod>` adresi herkese açık doğrulama sayfasıdır ve `get_certificate`
-  RPC'siyle yalnızca sertifika alanlarını döner.
-- Sonuç ekranındaki sertifika kartından **PDF**, **PNG** indirilebilir; LinkedIn, X, WhatsApp ve
-  Facebook paylaşımı ile panoya kopyalama sunulur. PDF, yüksek çözünürlüklü sertifika görselini tek
-  sayfalık A4 yatay PDF'e gömen bağımlılıksız bir yazıcıyla üretilir.
-- Migration: [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
+| Section | Candidate task | Weight |
+| --- | --- | --- |
+| **Vocabulario y Gramática** | Multiple-choice questions for the assigned level | 40% |
+| **Comprensión Auditiva** | Listen up to the allowed number of plays and transcribe what was heard | 20% |
+| **Expresión Escrita** | Write a composition on the assigned prompt | 20% |
+| **Expresión oral** | Record an answer or upload an audio file | 20% |
 
-## 8. Notlar ve sınırlar
+The total is calculated on a 100-point scale and rounded. The test portion is scored automatically; the other three sections are scored by an administrator from 0 to 100.
 
-- Dinleme sesleri herkese açık okunur (aday dinleyebilsin diye); konuşma kayıtları **özel** kovadadır,
-  panelde imzalı (geçici) bağlantı ile açılır. Dinleme hakkı (`max_plays`) istemcide sayılır; dosya
-  doğrudan indirilerek sınırsız dinlenebilir.
-- `attempts` tablosuna anonim yazma kapalıdır. Aday kaydı yalnızca `submit_attempt` RPC'si üzerinden,
-  doğrulama ve hız sınırıyla oluşur; okuma/güncelleme/silme yalnızca yöneticidedir.
-- 50 MB sınırı hem istemcide hem Supabase Storage kova ayarında uygulanır.
-- Yedek: **Genel Bakış → Yedek indir** tüm tabloları JSON olarak indirir (soru, dinleme, yazma,
-  konuşma, sınavlar, süre ayarları). Geri yükleme henüz otomatik değildir.
-- Sonuç listesi sunucu tarafında sayfalanır (25 kayıt) ve isim/e-posta araması veritabanında yapılır.
-- **Sonuç e-postası:** `supabase/functions/notify-result` edge function'ı, puanlama kaydedildiğinde
-  adaya Resend üzerinden sonuç özetini yollar. Gerekli secret'lar: `RESEND_API_KEY`,
-  `RESULT_FROM_EMAIL` (doğrulanmış gönderici), `APP_PUBLIC_URL`. Secret'lar eklenmeden puanlama
-  çalışır; panel "E-posta servisi yapılandırılmadı" uyarısı gösterir ve gönderim atlanır.
-  Aynı sonuç ikinci kez e-postalanmaz (`attempts.result_notified_at`).
-- Ücretsiz Supabase planı 1 GB dosya depolama ve 500 MB veritabanı içerir; yoğun kullanımda planı
-  yükseltmek gerekebilir.
+### Timing
 
-## Proje yapısı
+Each assignment can define its own duration. If no duration is provided, the level default from `exam_settings` applies (45–90 minutes in the sample configuration). The timer is anchored to the server-side draft start, so refreshing the page or switching devices does not reset it.
 
+### Certificates
+
+A certificate is issued only when all of the following are true:
+
+- the attempt has been graded;
+- the result is published to the candidate;
+- the total score is at least **60/100**.
+
+The certificate code is random and does not expose the candidate's email. `/certificado/<code>` is a public verification page that returns only the certificate fields through the `get_certificate` function. Certificates can be downloaded as PDF or PNG, copied as a link, or shared to LinkedIn, X, WhatsApp and Facebook.
+
+## Getting started
+
+### Prerequisites
+
+- **Node.js 22 LTS** and npm
+- A [Supabase](https://supabase.com) project
+- A GitHub repository with Pages enabled (for deployment)
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/ErdalBirinci/examen-espanol.git
+cd examen-espanol
+npm install
 ```
-src/
-  exam/        Aday akışı (giriş, seviye, test, dinleme, yazma, konuşma)
-  admin/       Yönetim paneli (giriş, sonuçlar, içerik yönetimi)
-  components/  Ortak arayüz bileşenleri
-  lib/         Supabase istemcisi, API katmanı, tipler
-supabase/
-  schema.sql   Tablolar, RLS, storage kovaları, puanlama
-  seed.sql     Örnek içerik
-  migrations/  Sonradan eklenen şema ve RPC'ler (sırayla uygula)
-  functions/   notify-result edge function (sonuç e-postası)
+
+### 2. Configure the frontend
+
+```bash
+cp .env.example .env
 ```
+
+Set the public Supabase values:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-public-key
+```
+
+The anon key is designed to be public and is constrained by RLS. **Never put a `service_role` key in the frontend, `.env` or this repository.**
+
+### 3. Set up Supabase
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor** and run the complete contents of [`supabase/schema.sql`](supabase/schema.sql).
+3. Apply the migrations in filename order:
+   - [`20261023_exam_integrity.sql`](supabase/migrations/20261023_exam_integrity.sql)
+   - [`20261024_result_lookup.sql`](supabase/migrations/20261024_result_lookup.sql)
+   - [`20261025_exam_drafts.sql`](supabase/migrations/20261025_exam_drafts.sql)
+   - [`20261026_result_email.sql`](supabase/migrations/20261026_result_email.sql)
+   - [`20261027_membership.sql`](supabase/migrations/20261027_membership.sql)
+   - [`20261028_assignment_settings.sql`](supabase/migrations/20261028_assignment_settings.sql)
+   - [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
+
+   The migrations are idempotent and safe to run again.
+4. Create the administrator account in **Authentication → Users → Add user**:
+   - Email: `<username>@examen.local` (for example `yonetici@examen.local`)
+   - Password: a strong password of your choice
+   - Enable **Auto Confirm User**
+5. Uncomment the `insert into public.profiles ...` block at the end of `schema.sql`, replace the email, and run it. This links the auth user to the `admin` role. Example:
+
+   ```sql
+   insert into public.profiles (id, username, display_name, role)
+   select id, 'yonetici', 'Yönetici', 'admin'
+   from auth.users
+   where email = 'yonetici@examen.local'
+   on conflict (id) do update
+     set username = excluded.username, role = 'admin';
+   ```
+
+6. Optional: run [`supabase/seed.sql`](supabase/seed.sql) to insert 10 sample questions and one writing/speaking prompt per level. Listening audio still needs to be uploaded from the admin console.
+7. Copy **Project URL** and the **anon public** key from **Project Settings → API** into `.env`.
+
+> The admin login maps the username to `<username>@examen.local`. The password is never stored in the repository.
+
+### 4. Run locally
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+### Frontend environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Public anon/publishable key used by the browser client |
+| `VITE_BASE_PATH` | Deployment only | Vite base path; set automatically to `/<repository>/` by the Pages workflow |
+
+Local development uses `/` as the base path. The production workflow sets `VITE_BASE_PATH` so assets resolve under the repository subpath.
+
+## Deployment
+
+The app is deployed as a static site to GitHub Pages.
+
+1. Push the repository to GitHub with `main` as the default branch.
+2. Open **Settings → Secrets and variables → Actions → Variables** and add:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. Open **Settings → Pages → Build and deployment** and select **GitHub Actions** as the source.
+4. Push to `main`, or run `.github/workflows/deploy.yml` manually with **Run workflow**.
+
+The workflow:
+
+- installs dependencies with `npm ci`;
+- builds with Node 22 and the repository's base path;
+- runs `scripts/postbuild.mjs`, which copies `dist/index.html` to `dist/404.html` and writes `.nojekyll`;
+- uploads the artifact and deploys it with `actions/deploy-pages`.
+
+The `404.html` fallback is required because GitHub Pages has no server-side rewrites. It lets deep links such as `/adminpanel`, `/examen/<id>` and `/certificado/<code>` boot the SPA at the requested URL.
+
+| Environment | URL |
+| --- | --- |
+| Candidate app | `https://<user>.github.io/<repository>/` |
+| Admin console | `https://<user>.github.io/<repository>/adminpanel` |
+| Result lookup | `https://<user>.github.io/<repository>/resultado` |
+
+## Authentication and security
+
+- Candidate accounts use Supabase Auth email/password. Registration is restricted by `check_candidate_email`, which checks for an existing assignment or previous attempt.
+- Admin authentication uses a username converted to `<username>@examen.local`. Access is checked against `profiles.role = 'admin'` in the UI and, more importantly, by RLS policies in the database.
+- The candidate role has no access to correct answers, other candidates' attempts or admin-only tables.
+- Public certificate verification returns only the certificate holder's name, level, score and dates; it never returns an email address or answers.
+- Listening audio is public so candidates can play it. Speaking recordings are private and are opened by administrators through signed URLs.
+- All storage and table policies live in `supabase/schema.sql` and the migrations.
+
+### Production checklist
+
+- [ ] Run `schema.sql` and every migration against the production project.
+- [ ] Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as GitHub Actions repository variables.
+- [ ] Set the Supabase Auth **Site URL** to the GitHub Pages URL.
+- [ ] Add the password-reset redirect URLs:
+  - `https://<user>.github.io/<repository>/cuenta/restablecer`
+  - `http://localhost:5173/**` for development
+- [ ] Configure a custom SMTP provider before enabling email confirmation or password reset at scale. Supabase's built-in email sender is rate-limited.
+- [ ] Verify the live deployment after the first push.
+- [ ] Keep the admin password and every `service_role` key out of the repository.
+
+## Password recovery
+
+- `/cuenta/recuperar` requests a reset email.
+- The email link lands on `/cuenta/restablecer`, where the candidate sets a new password.
+- If Supabase falls back to the Site URL instead of the configured redirect, the app moves the recovery hash to `/cuenta/restablecer` before the session is lost.
+
+## Optional result emails
+
+The `supabase/functions/notify-result` Edge Function sends a result summary through Resend when an administrator saves the final grading. It requires these function secrets:
+
+- `RESEND_API_KEY`
+- `RESULT_FROM_EMAIL` — a verified sender address
+- `APP_PUBLIC_URL` — the public candidate URL
+
+If the secrets are missing, grading still works. The admin console shows a configuration notice and skips the email. `attempts.result_notified_at` prevents the same result from being sent twice.
+
+## Project structure
+
+```text
+.
+├── .github/workflows/deploy.yml   # GitHub Pages build and deployment
+├── docs/screenshots/              # README screenshots
+├── scripts/postbuild.mjs          # 404.html + .nojekyll for Pages
+├── src/
+│   ├── admin/                     # Admin login, layout, grading, content and assignments
+│   ├── components/                # Shared UI, header, footer, 3D scenes, tilt cards
+│   ├── exam/                      # Candidate landing, portal, exam shell and four steps
+│   ├── lib/                       # Supabase client, typed API layer, scoring helpers
+│   ├── App.tsx                    # Routes
+│   ├── index.css                  # Tailwind theme, glass surfaces and motion
+│   └── main.tsx
+├── supabase/
+│   ├── schema.sql                 # Tables, views, RLS, storage buckets, scoring
+│   ├── seed.sql                   # Optional sample content
+│   ├── migrations/                # Incremental schema and RPC changes
+│   └── functions/notify-result/   # Optional Resend result email
+├── index.html
+├── vite.config.ts
+└── package.json
+```
+
+## Routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Candidate landing page and sign-in/register panel |
+| `/cuenta` | Candidate dashboard with assigned exams |
+| `/cuenta/recuperar` | Request a password reset |
+| `/cuenta/restablecer` | Set a new password |
+| `/examen/:assignmentId` | The four-section exam |
+| `/resultado` | Result lookup by reference code and email |
+| `/certificado/:code` | Public certificate verification |
+| `/adminpanel` | Admin sign-in |
+| `/adminpanel/panel` | Admin overview |
+| `/adminpanel/atamalar` | Candidate exam assignments |
+| `/adminpanel/sonuclar` | Exam results and grading |
+| `/adminpanel/test` | Multiple-choice questions |
+| `/adminpanel/dinleme` | Listening content |
+| `/adminpanel/yazma` | Writing prompts |
+| `/adminpanel/konusma` | Speaking prompts |
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Type-check, build for production and create Pages fallback files |
+| `npm run preview` | Preview the production build locally |
+| `npm run typecheck` | Run the TypeScript compiler without emitting files |
+
+## Operational notes and limitations
+
+- **Listening play limits are counted on the client.** Audio can still be downloaded directly from its public URL, so `max_plays` is a strong nudge rather than a hard security boundary.
+- **Speaking uploads are capped at 50 MB** in both the UI and the storage bucket policy.
+- **Anonymous writes to `attempts` are disabled.** New attempts are only created by the server-side submission function.
+- **The JSON backup is read-only.** The overview page can export all tables, but automatic restore is not implemented.
+- **Results are paginated server-side** at 25 rows per page; name/email search runs in the database.
+- **Email confirmation should be configured deliberately.** The sample workflow assumes it is disabled; if you enable it, set up your own SMTP provider and test the full registration and password-reset flow.
+- **Free-tier Supabase limits apply** (1 GB storage and 500 MB database at the time of writing). Review the current plan before a large exam session.
+- **The 3D scenes are progressive enhancement.** A CSS medallion remains visible if WebGL is unavailable, and the scenes respect reduced-motion and lower-end mobile devices.
+
+## License
+
+No license file is included in this repository. Add one before distributing the project outside its current ownership.
