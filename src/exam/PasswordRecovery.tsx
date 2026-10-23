@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, KeyRound, Mail } from "lucide-react";
+import { CheckCircle2, KeyRound, Mail } from "lucide-react";
 import { Button, Field, Notice, Spinner } from "../components/ui";
+import { BackLink, SiteHeader } from "../components/SiteHeader";
 import {
   clearRecoverySession,
   requestPasswordReset,
@@ -23,34 +24,21 @@ function RecoveryShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-dvh bg-[radial-gradient(120%_70%_at_50%_-15%,#e9f2ff_0%,#f7f9fd_38%,#fbfbfd_70%)]">
-      <header className="sticky top-0 z-30 border-b border-[rgba(29,29,31,0.06)] glass-bar">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-5 sm:px-8">
-          <Link to="/" className="flex items-baseline gap-1.5">
-            <span className="text-[15px] font-semibold tracking-[-0.02em]">Examen</span>
-            <span className="font-display text-[19px] italic text-accent-ink">de Español</span>
-          </Link>
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition hover:text-ink"
-          >
-            <ArrowLeft className="size-3.5" />
-            Inicio
-          </Link>
-        </div>
-      </header>
+    <div className="app-page min-h-dvh">
+      <SiteHeader width="3xl" right={<BackLink label="Inicio" />} />
 
       <main className="mx-auto max-w-md px-5 py-12 sm:py-20">
         <div className="anim-rise">
-          <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+          <span className="premium-kicker">
+            <span className="size-1.5 rounded-full bg-gold" />
             {eyebrow}
-          </p>
-          <h1 className="mt-3 text-[32px] leading-[1.08] font-semibold tracking-[-0.035em]">
+          </span>
+          <h1 className="mt-5 text-[clamp(2.2rem,5vw,2.6rem)] leading-[1.04] font-semibold tracking-[-0.045em]">
             {title}
           </h1>
-          <p className="mt-3 text-[13.5px] leading-relaxed text-muted">{description}</p>
+          <p className="mt-3.5 text-[13.5px] leading-relaxed text-muted">{description}</p>
         </div>
-        <div className="anim-rise card mt-7 p-6 sm:p-8">{children}</div>
+        <div className="anim-rise premium-panel mt-7 rounded-[1.75rem] p-6 sm:p-8">{children}</div>
       </main>
     </div>
   );

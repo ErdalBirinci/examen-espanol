@@ -51,7 +51,7 @@ export default function TestStep({
         title="Vocabulario y Gramática"
         description="Elige la opción correcta en cada pregunta. Puedes volver atrás y cambiar tus respuestas."
         aside={
-          <div className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center">
+          <div className="glass-inset rounded-2xl px-4 py-2.5 text-center">
             <p className="text-[10.5px] font-medium tracking-[0.08em] text-faint uppercase">Respondidas</p>
             <p className="mt-0.5 text-[17px] font-semibold tabular-nums">
               {answeredCount}
@@ -65,16 +65,16 @@ export default function TestStep({
         key={question.id}
         className="anim-rise card overflow-hidden"
       >
-        <div className="border-b border-line px-6 py-4 sm:px-8">
+        <div className="border-b border-white/70 bg-white/25 px-6 py-4 sm:px-8">
           <div className="flex items-center justify-between text-[11.5px] font-medium text-muted">
             <span className="tabular-nums">
               Pregunta {String(current + 1).padStart(2, "0")} / {questions.length}
             </span>
             <span>{Math.round((answeredCount / questions.length) * 100)}% completado</span>
           </div>
-          <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-[#eef0f4]">
+          <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-[#e4eaf3]/80">
             <div
-              className="h-full rounded-full bg-accent transition-all duration-500"
+              className="h-full rounded-full bg-[linear-gradient(90deg,#2f6bff,#8fb3ff)] transition-all duration-500"
               style={{ width: `${(answeredCount / questions.length) * 100}%` }}
             />
           </div>
@@ -98,16 +98,16 @@ export default function TestStep({
                   className={cn(
                     "focus-ring group flex w-full items-center gap-3.5 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150",
                     active
-                      ? "border-accent/60 bg-accent-soft shadow-[inset_0_0_0_1px_rgba(0,113,227,0.35)]"
-                      : "border-line bg-white hover:border-[#cfcfd6] hover:bg-[#fcfcfe]",
+                      ? "border-[#a9c8f2] bg-[linear-gradient(140deg,rgba(238,245,255,0.96),rgba(255,255,255,0.75))] shadow-[inset_0_0_0_1px_rgba(47,107,255,0.18),0_12px_28px_-24px_rgba(47,107,255,0.7)]"
+                      : "border-white/80 bg-white/45 hover:border-white hover:bg-white/75",
                   )}
                 >
                   <span
                     className={cn(
                       "flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold transition",
                       active
-                        ? "bg-accent text-white"
-                        : "bg-[#f3f3f6] text-muted group-hover:bg-[#ebebf0]",
+                        ? "bg-accent text-white shadow-[0_5px_12px_-6px_rgba(47,107,255,0.8)]"
+                        : "bg-white/70 text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] group-hover:bg-white",
                     )}
                   >
                     {active ? <Check className="size-3.5" strokeWidth={3} /> : LETTERS[optionIndex]}
@@ -119,14 +119,14 @@ export default function TestStep({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-line bg-[#fcfcfe] px-6 py-3.5 sm:px-8">
+        <div className="flex items-center justify-between border-t border-white/70 bg-white/30 px-6 py-3.5 sm:px-8">
           <button
             type="button"
             onClick={() => setCurrent((index) => Math.max(0, index - 1))}
             disabled={current === 0}
-            className="focus-ring rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-muted transition hover:bg-white hover:text-ink disabled:opacity-40"
+            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted transition hover:bg-white/70 hover:text-ink disabled:opacity-40"
           >
-            ← Anterior
+            ← Pregunta anterior
           </button>
 
           <div className="hidden max-w-[50%] flex-wrap justify-center gap-1.5 sm:flex">
@@ -141,10 +141,10 @@ export default function TestStep({
                   className={cn(
                     "size-5 rounded-[6px] text-[9.5px] font-semibold transition",
                     index === current
-                      ? "bg-ink text-white"
+                      ? "bg-[linear-gradient(135deg,#16243d,#2b4a7d)] text-white shadow-[0_4px_10px_-6px_rgba(18,35,62,0.8)]"
                       : answered
                         ? "bg-accent/15 text-accent-ink"
-                        : "bg-[#eeeef2] text-faint hover:bg-[#e2e2e8]",
+                        : "bg-white/55 text-faint hover:bg-white/80",
                   )}
                 >
                   {index + 1}
@@ -156,9 +156,9 @@ export default function TestStep({
           <button
             type="button"
             onClick={() => (isLast ? onNext() : setCurrent((index) => index + 1))}
-            className="focus-ring rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink transition hover:bg-white"
+            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink transition hover:bg-white/70"
           >
-            {isLast ? "Continuar →" : "Siguiente →"}
+            {isLast ? "Continuar →" : "Siguiente pregunta →"}
           </button>
         </div>
       </div>

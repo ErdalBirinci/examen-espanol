@@ -1,7 +1,8 @@
-import { useRef, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Award, ClipboardCheck, Clock3, Search } from "lucide-react";
+import { useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Award, ClipboardCheck, Clock3, Search } from "lucide-react";
 import { Button, Field, Notice, Spinner } from "../components/ui";
+import { BackLink, SiteFooter, SiteHeader } from "../components/SiteHeader";
 import { CertificatePanel } from "./Certificate";
 import { issueCertificate, lookupAttemptResult } from "../lib/api";
 import { isCertificateEligible } from "../lib/certificate";
@@ -84,38 +85,26 @@ export default function ResultPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-[radial-gradient(120%_70%_at_50%_-15%,#e9f2ff_0%,#f7f9fd_38%,#fbfbfd_70%)]">
-      <header className="sticky top-0 z-30 border-b border-[rgba(29,29,31,0.06)] glass-bar">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-5 sm:px-8">
-          <Link to="/" className="flex items-baseline gap-1.5">
-            <span className="text-[15px] font-semibold tracking-[-0.02em]">Examen</span>
-            <span className="font-display text-[19px] italic text-accent-ink">de Español</span>
-          </Link>
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition hover:text-ink"
-          >
-            <ArrowLeft className="size-3.5" />
-            Inicio
-          </Link>
-        </div>
-      </header>
+    <div className="app-page">
+      <SiteHeader width="3xl" right={<BackLink label="Inicio" />} />
 
       <main className="mx-auto max-w-3xl px-5 py-12 sm:px-8 sm:py-16">
         <div className="anim-rise">
-          <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+          <span className="premium-kicker">
+            <span className="size-1.5 rounded-full bg-gold" />
             Consulta de resultados
-          </p>
-          <h1 className="mt-3 text-[34px] leading-[1.08] font-semibold tracking-[-0.035em] sm:text-[42px]">
-            ¿Cómo te fue?
+          </span>
+          <h1 className="mt-5 text-[clamp(2.6rem,6vw,3.5rem)] leading-[1] font-semibold tracking-[-0.05em]">
+            ¿Cómo{" "}
+            <span className="font-display font-normal italic text-gradient-blue">te fue?</span>
           </h1>
-          <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-muted">
+          <p className="mt-4 max-w-xl text-[14px] leading-relaxed text-muted">
             Introduce el código de referencia que viste al enviar el examen y el mismo correo con el
             que te registraste.
           </p>
         </div>
 
-        <form onSubmit={(event) => void handleLookup(event)} className="anim-rise card mt-8 p-6 sm:p-8">
+        <form onSubmit={(event) => void handleLookup(event)} className="anim-rise premium-panel mt-8 rounded-[1.75rem] p-6 sm:p-8">
           <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
             <Field label="Código de referencia" htmlFor="code" hint="8 caracteres, por ejemplo 4F2A9C1B.">
               <input
@@ -144,7 +133,8 @@ export default function ResultPage() {
 
           <Button
             type="submit"
-            className="mt-5"
+            size="lg"
+            className="mt-5 w-full sm:w-auto"
             loading={loading}
             icon={<Search className="size-4" />}
           >
@@ -173,7 +163,7 @@ export default function ResultPage() {
           <>
             {certificate && <CertificatePanel certificate={certificate} />}
             {certificateLoading && (
-              <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-[12.5px] text-muted">
+              <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-white/85 bg-white/60 px-4 py-3 text-[12.5px] text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
                 <Spinner className="size-4" />
                 Preparando tu certificado…
               </div>
@@ -191,13 +181,14 @@ export default function ResultPage() {
           result.status === "graded" &&
           result.total_score !== null &&
           result.total_score < 60 && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-line bg-white px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-white/85 bg-white/60 px-4 py-3 text-[12.5px] leading-relaxed text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
               <Award className="mt-0.5 size-4 shrink-0 text-faint" />
               El certificado se emite a partir de 60/100. Puedes consultar con tu centro las opciones
               para volver a preparar el examen.
             </div>
           )}
       </main>
+      <SiteFooter note="Consulta privada de resultados" />
     </div>
   );
 }
@@ -223,7 +214,7 @@ function ResultCard({ result }: { result: AttemptResult }) {
 
   return (
     <section className="anim-rise card mt-6 overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-[#fcfcfe] px-6 py-5 sm:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/70 bg-white/35 px-6 py-5 backdrop-blur-md sm:px-8">
         <div>
           <p className="text-[11px] font-semibold tracking-[0.1em] text-faint uppercase">
             Referencia {result.reference} · Nivel {result.level}
@@ -254,29 +245,46 @@ function ResultCard({ result }: { result: AttemptResult }) {
           </Notice>
         </div>
       ) : (
-      <div className="grid gap-6 px-6 py-6 sm:grid-cols-[1fr_auto] sm:px-8">
-        <div className="space-y-3">
+      <div className="grid items-center gap-7 px-6 py-7 sm:grid-cols-[1fr_auto] sm:px-8">
+        <div className="space-y-4">
           {rows.map((row) => (
-            <div key={row.label} className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium">{row.label}</p>
-                {row.detail && <p className="text-[11.5px] text-faint">{row.detail}</p>}
+            <div key={row.label}>
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-medium">{row.label}</p>
+                  {row.detail && <p className="text-[10.5px] text-faint">{row.detail}</p>}
+                </div>
+                <span className="text-[13px] font-semibold tabular-nums">
+                  {row.value === null ? "—" : `${row.value}%`}
+                </span>
               </div>
-              <span className="w-14 text-right text-[14px] font-semibold tabular-nums">
-                {row.value === null ? "—" : `${row.value}%`}
-              </span>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5ebf4]/80">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#2f6bff,#8fb3ff)] transition-[width] duration-700"
+                  style={{ width: `${Math.max(0, Math.min(100, row.value ?? 0))}%` }}
+                />
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="flex flex-col items-center justify-center rounded-2xl bg-ink px-8 py-6 text-center text-white sm:w-40">
-          <p className="text-[10.5px] font-medium tracking-[0.1em] text-white/60 uppercase">
+        <div className="flex flex-col items-center justify-center sm:w-[164px]">
+          <div
+            className="progress-ring size-[132px]"
+            style={{ "--value": graded ? result.total_score ?? 0 : 0 } as CSSProperties}
+          >
+            <div className="text-center">
+              <p className="text-[38px] leading-none font-semibold tracking-[-0.04em] tabular-nums">
+                {result.total_score ?? "—"}
+              </p>
+              <p className="mt-1 text-[9px] font-semibold tracking-[0.1em] text-faint uppercase">
+                sobre 100
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-center text-[9.5px] font-semibold tracking-[0.12em] text-faint uppercase">
             Puntuación global
           </p>
-          <p className="mt-1.5 text-[38px] leading-none font-semibold tabular-nums">
-            {result.total_score ?? "—"}
-          </p>
-          <p className="mt-1 text-[11px] text-white/60">sobre 100</p>
         </div>
       </div>
       )}

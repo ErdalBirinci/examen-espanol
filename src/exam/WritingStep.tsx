@@ -40,7 +40,7 @@ export default function WritingStep({
         title="Expresión Escrita"
         description="Responde con tus propias palabras. No hay respuestas correctas o incorrectas: valoramos claridad y riqueza."
         aside={
-          <div className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center">
+          <div className="glass-inset rounded-2xl px-4 py-2.5 text-center">
             <p className="text-[10.5px] font-medium tracking-[0.08em] text-faint uppercase">Palabras</p>
             <p className="mt-0.5 text-[17px] font-semibold tabular-nums">
               {words}
@@ -51,7 +51,7 @@ export default function WritingStep({
       />
 
       <div className="anim-rise card overflow-hidden">
-        <div className="border-b border-line bg-gradient-to-br from-[#f4f9ff] to-white px-6 py-6 sm:px-8">
+        <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,248,255,0.8),rgba(255,255,255,0.35))] px-6 py-6 sm:px-8">
           <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-accent-ink uppercase">
             <PenLine className="size-3.5" />
             Tema propuesto
@@ -80,7 +80,9 @@ export default function WritingStep({
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 font-medium",
-                enough ? "bg-[#eef8f1] text-success" : "bg-[#fdf4e7] text-warning",
+                enough
+                  ? "border border-[#d6ecdf] bg-[#eef8f1]/85 text-success"
+                  : "border border-[#f1e0c5] bg-[#fdf4e7]/85 text-warning",
               )}
             >
               {enough ? "Extensión suficiente" : `Faltan ${prompt.min_words - words} palabras`}

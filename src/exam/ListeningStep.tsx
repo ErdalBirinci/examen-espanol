@@ -46,7 +46,7 @@ export default function ListeningStep({
         title="Comprensión Auditiva"
         description="Escucha la grabación y transcribe con tus propias palabras lo que has escuchado."
         aside={
-          <div className="flex items-center gap-2 rounded-2xl border border-line bg-white px-4 py-2.5 text-[12px] text-muted">
+          <div className="glass-inset flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[12px] text-muted">
             <Headphones className="size-4 text-accent" />
             <span className="tabular-nums">
               Pista {current + 1} de {items.length}
@@ -93,19 +93,19 @@ export default function ListeningStep({
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
+        <div className="mt-6 flex items-center justify-between border-t border-white/70 pt-4">
           <button
             type="button"
             onClick={() => setCurrent((index) => Math.max(0, index - 1))}
             disabled={current === 0}
-            className="focus-ring rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-muted transition hover:bg-[#f2f2f5] hover:text-ink disabled:opacity-40"
+            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted transition hover:bg-white/70 hover:text-ink disabled:opacity-40"
           >
             ← Pista anterior
           </button>
           <button
             type="button"
             onClick={() => (isLast ? onNext() : setCurrent((index) => index + 1))}
-            className="focus-ring rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink transition hover:bg-[#f2f2f5]"
+            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink transition hover:bg-white/70"
           >
             {isLast ? "Ir a expresión escrita →" : "Siguiente pista →"}
           </button>

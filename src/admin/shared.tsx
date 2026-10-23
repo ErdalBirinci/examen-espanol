@@ -13,10 +13,14 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-7 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-[22px] font-semibold tracking-[-0.025em]">{title}</h1>
-        {description && <p className="mt-1 text-[13px] leading-relaxed text-muted">{description}</p>}
+        <p className="flex items-center gap-2 text-[9.5px] font-semibold tracking-[0.18em] text-faint uppercase">
+          <span className="size-1.5 rounded-full bg-gold" />
+          Yönetim
+        </p>
+        <h1 className="mt-2 text-[26px] leading-tight font-semibold tracking-[-0.04em]">{title}</h1>
+        {description && <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">{description}</p>}
       </div>
       {action}
     </div>
@@ -33,23 +37,25 @@ export function LevelTabs({
   suffix?: (level: Level) => ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap gap-1.5 rounded-xl border border-line bg-white p-1.5">
+    <div className="mb-5 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-white/80 bg-white/50 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl">
       {LEVELS.map((level) => (
         <button
           key={level}
           type="button"
           onClick={() => onChange(level)}
           className={cn(
-            "focus-ring flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition",
-            value === level ? "bg-ink text-white" : "text-muted hover:bg-[#f3f3f6] hover:text-ink",
+            "focus-ring flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition",
+            value === level
+              ? "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_8px_18px_-14px_rgba(18,35,62,0.9)]"
+              : "text-muted hover:bg-white/70 hover:text-ink",
           )}
         >
           {level}
           {suffix ? (
             <span
               className={cn(
-                "rounded-full px-1.5 text-[10.5px] tabular-nums",
-                value === level ? "bg-white/20" : "bg-[#f0f0f4] text-faint",
+                "rounded-full px-1.5 text-[10px] tabular-nums",
+                value === level ? "bg-white/15 text-white/80" : "bg-white/70 text-faint",
               )}
             >
               {suffix(level)}
@@ -63,7 +69,14 @@ export function LevelTabs({
 
 export function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-line bg-white", className)}>{children}</div>
+    <div
+      className={cn(
+        "rounded-2xl border border-white/85 bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_22px_50px_-42px_rgba(24,41,74,0.45)] backdrop-blur-xl",
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -110,7 +123,7 @@ export function ConfirmDialog({
 
 export function LevelBadge({ level }: { level: Level }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-[#f2f2f5] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+    <span className="inline-flex items-center rounded-md border border-white/80 bg-white/65 px-1.5 py-0.5 text-[10.5px] font-semibold text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
       {level}
     </span>
   );

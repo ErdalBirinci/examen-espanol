@@ -48,7 +48,7 @@ export default function AudioPlayer({
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-[#fcfcfe] p-4">
+    <div className="glass-inset rounded-2xl p-4">
       <audio
         ref={audioRef}
         src={src}
@@ -68,8 +68,8 @@ export default function AudioPlayer({
           className={cn(
             "focus-ring flex size-12 shrink-0 items-center justify-center rounded-full transition active:scale-95",
             exhausted && !playing
-              ? "cursor-not-allowed bg-[#ececf1] text-faint"
-              : "bg-ink text-white hover:bg-black",
+              ? "cursor-not-allowed bg-white/50 text-faint"
+              : "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_12px_24px_-14px_rgba(18,35,62,0.8)] hover:brightness-110",
           )}
         >
           {playing ? <Pause className="size-4.5" fill="currentColor" /> : <Play className="size-4.5 translate-x-0.5" fill="currentColor" />}
@@ -90,7 +90,7 @@ export default function AudioPlayer({
               setCurrentTime(value);
             }}
             aria-label="Posición del audio"
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#e7e7ee] accent-[#0071e3]"
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#e2e9f3] accent-[#2f6bff]"
           />
           <div className="mt-1.5 flex items-center justify-between text-[11px] text-faint tabular-nums">
             <span>{formatSeconds(currentTime)}</span>

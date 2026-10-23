@@ -153,7 +153,7 @@ export default function Overview() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={<Users className="size-4" />} label="Toplam sınav" value={stats.total} />
         <StatCard icon={<Sparkles className="size-4" />} label="Bu ay" value={stats.thisMonth} />
         <StatCard
@@ -215,9 +215,9 @@ export default function Overview() {
             {distribution.map(({ level, count }) => (
               <div key={level} className="flex items-center gap-3">
                 <span className="w-6 text-[11.5px] font-semibold text-muted">{level}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f1f1f4]">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e5ebf4]/80">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#0071e3] to-[#63a9f5] transition-all duration-700"
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#2f6bff,#8fb3ff)] transition-all duration-700"
                     style={{ width: `${(count / maxCount) * 100}%` }}
                   />
                 </div>
@@ -226,7 +226,7 @@ export default function Overview() {
             ))}
           </div>
 
-          <div className="mt-6 rounded-xl bg-[#fcfcfe] p-3.5 ring-1 ring-line">
+          <div className="mt-6 rounded-xl border border-white/80 bg-white/45 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
             <p className="text-[12px] font-medium">İçerik durumu</p>
             <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
               Soru ve ses kayıtlarını seviye bazında soldaki menüden yönetebilirsin.
@@ -248,7 +248,7 @@ export default function Overview() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left">
             <thead>
-              <tr className="border-b border-line bg-[#fcfcfe] text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase">
+              <tr className="border-b border-white/70 bg-white/35 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase">
                 <th className="px-5 py-2">Seviye</th>
                 <th className="px-3 py-2">Soru</th>
                 <th className="px-3 py-2">Dinleme</th>
@@ -362,18 +362,19 @@ function StatCard({
   tone?: "neutral" | "warning";
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-4">
+    <div className="relative overflow-hidden rounded-2xl border border-white/85 bg-white/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_20px_44px_-40px_rgba(24,41,74,0.5)] backdrop-blur-xl">
       <div
         className={
           tone === "warning"
-            ? "flex size-8 items-center justify-center rounded-lg bg-[#fdf4e7] text-warning"
-            : "flex size-8 items-center justify-center rounded-lg bg-[#f3f3f6] text-muted"
+            ? "flex size-8 items-center justify-center rounded-lg border border-white/80 bg-[#fdf4e7]/85 text-warning"
+            : "flex size-8 items-center justify-center rounded-lg border border-white/80 bg-white/70 text-muted"
         }
       >
         {icon}
       </div>
-      <p className="mt-3 text-[24px] font-semibold tracking-[-0.03em] tabular-nums">{value}</p>
-      <p className="mt-0.5 text-[11.5px] text-muted">{label}</p>
+      <p className="mt-3 text-[24px] font-semibold tracking-[-0.04em] tabular-nums">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted">{label}</p>
+      <span className="absolute -top-6 -right-6 size-16 rounded-full bg-[radial-gradient(circle,rgba(47,107,255,0.12),transparent_70%)]" />
     </div>
   );
 }

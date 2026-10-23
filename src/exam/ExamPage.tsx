@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button, Notice, Spinner } from "../components/ui";
+import { SiteHeader } from "../components/SiteHeader";
 import { ExamShell, SECTION_LABELS, SECTION_STAGES, type SectionStage } from "./Shell";
 import TestStep from "./TestStep";
 import ListeningStep from "./ListeningStep";
@@ -356,7 +357,7 @@ export default function ExamPage() {
 
   if (accessError) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#fbfbfd] px-5">
+      <div className="app-page flex min-h-dvh items-center justify-center px-5">
         <div className="card w-full max-w-md p-8 text-center">
           <h1 className="text-[20px] font-semibold">No se puede abrir este examen</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">{accessError}</p>
@@ -584,10 +585,10 @@ function IntroScreen({
             </div>
           )}
         </div>
-        <h1 className="mt-3 text-[34px] leading-[1.08] font-semibold tracking-[-0.035em] sm:text-[46px]">
-          Hola, {candidate.firstName}.
+        <h1 className="mt-3 text-[34px] leading-[1.04] font-semibold tracking-[-0.045em] sm:text-[48px]">
+          Hola, <span className="font-display font-normal italic text-gradient-blue">{candidate.firstName}</span>.
           <br />
-          <span className="font-display text-[0.95em] font-normal italic text-accent-ink">
+          <span className="text-[0.72em] font-semibold tracking-[-0.03em] text-ink">
             ¿Empezamos?
           </span>
         </h1>
@@ -608,15 +609,15 @@ function IntroScreen({
                 type="button"
                 onClick={() => onSelectStart(stage)}
                 aria-pressed={selected}
-                className={`focus-ring flex items-center gap-4 rounded-2xl border p-4.5 text-left transition ${
+                className={`focus-ring group flex items-center gap-4 rounded-2xl border p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl transition ${
                   selected
-                    ? "border-[#9cc4f4] bg-accent-soft shadow-[0_10px_30px_-24px_rgba(0,113,227,0.8)]"
-                    : "border-line bg-white hover:border-[#cfd9e8] hover:bg-[#fcfdff]"
+                    ? "border-[#a9c8f2] bg-[linear-gradient(140deg,rgba(238,245,255,0.96)_0%,rgba(255,255,255,0.72)_100%)] shadow-[0_18px_38px_-30px_rgba(47,107,255,0.8),inset_0_1px_0_rgba(255,255,255,1)]"
+                    : "border-white/80 bg-white/50 hover:border-white hover:bg-white/75"
                 }`}
               >
                 <div
-                  className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                    selected ? "bg-white text-accent" : "bg-accent-soft text-accent"
+                  className={`flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ${
+                    selected ? "bg-white text-accent" : "bg-white/60 text-accent"
                   }`}
                 >
                   <Icon className="size-4.5" strokeWidth={1.8} />
@@ -628,8 +629,8 @@ function IntroScreen({
                 <span
                   className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${
                     selected
-                      ? "border-accent bg-accent text-white"
-                      : "border-[#d4d4da] bg-white text-transparent"
+                      ? "border-accent bg-accent text-white shadow-[0_4px_10px_-4px_rgba(47,107,255,0.7)]"
+                      : "border-white bg-white/70 text-transparent"
                   }`}
                   aria-hidden
                 >
@@ -714,7 +715,7 @@ function IntroScreen({
               ¿Empezaste en otro dispositivo? Continúa aquí
             </button>
           ) : (
-            <div className="card max-w-md p-4">
+            <div className="premium-panel max-w-md rounded-2xl p-4">
               <p className="text-[12.5px] font-medium">Continuar un examen empezado</p>
               <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted">
                 Introduce el código del borrador y el correo con el que te registraste.
@@ -780,9 +781,18 @@ function CompletionScreen({
   candidate: Candidate;
 }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[radial-gradient(100%_70%_at_50%_-10%,#e9f4ff_0%,#fbfbfd_60%)] px-5 py-16">
+    <div className="app-page min-h-dvh">
+      <SiteHeader
+        width="4xl"
+        right={
+          <Link to="/cuenta" className="text-[12px] font-medium text-muted transition hover:text-ink">
+            Mi panel
+          </Link>
+        }
+      />
+      <main className="flex min-h-[calc(100dvh-6rem)] items-center justify-center px-5 py-12">
       <div className="anim-rise card w-full max-w-lg p-8 text-center sm:p-10">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef8f1] text-success">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-white bg-[#eef8f1] text-success shadow-[0_14px_30px_-22px_rgba(22,132,90,0.7)]">
           <CheckCircle2 className="size-7" strokeWidth={1.8} />
         </div>
         <h1 className="mt-5 text-[28px] font-semibold tracking-[-0.03em]">Examen enviado</h1>
@@ -791,7 +801,7 @@ function CompletionScreen({
           evaluador las revisará en breve.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-line bg-[#fcfcfe] px-5 py-4">
+        <div className="mt-6 rounded-2xl border border-white/85 bg-white/55 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
           <p className="text-[10.5px] font-medium tracking-[0.1em] text-faint uppercase">Referencia</p>
           <p className="mt-1 font-mono text-[16px] font-semibold tracking-[0.06em]">{code ?? "—"}</p>
           <p className="mt-2 text-[11.5px] text-faint">Guarda este código por si necesitas consultarlo.</p>
@@ -799,7 +809,10 @@ function CompletionScreen({
 
         <div className="mt-4 flex flex-wrap justify-center gap-2 text-[11.5px] text-muted">
           {SECTION_LABELS.map((label) => (
-            <span key={label} className="rounded-full bg-[#f2f2f5] px-2.5 py-1">
+            <span
+              key={label}
+              className="rounded-full border border-white/80 bg-white/55 px-2.5 py-1 text-[10.5px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+            >
               {label} ✓
             </span>
           ))}
@@ -816,6 +829,7 @@ function CompletionScreen({
           </Link>
         </div>
       </div>
+      </main>
     </div>
   );
 }

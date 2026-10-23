@@ -16,18 +16,18 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-accent text-white hover:bg-accent-ink shadow-[0_8px_24px_-12px_rgba(0,113,227,0.8)] disabled:bg-[#9dc7f5]",
-  dark: "bg-ink text-white hover:bg-black shadow-[0_10px_30px_-16px_rgba(0,0,0,0.7)]",
+    "bg-[linear-gradient(135deg,#1e4fd6_0%,#2f6bff_52%,#6d9bff_100%)] text-white shadow-[0_14px_32px_-18px_rgba(47,107,255,0.95),inset_0_1px_0_rgba(255,255,255,0.24)] hover:brightness-[1.06] disabled:bg-[#9db9ea] disabled:bg-none",
+  dark: "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_14px_30px_-18px_rgba(18,35,62,0.9),inset_0_1px_0_rgba(255,255,255,0.16)] hover:brightness-110",
   secondary:
-    "bg-white text-ink border border-line hover:border-[#cfcfd6] hover:bg-[#fcfcfe]",
-  ghost: "bg-transparent text-muted hover:text-ink hover:bg-[#f2f2f5]",
-  danger: "bg-[#fdf0f0] text-danger border border-[#f6d5d6] hover:bg-[#fbe3e4]",
+    "border border-white/85 bg-white/60 text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_10px_24px_-22px_rgba(24,41,74,0.5)] backdrop-blur-md hover:border-white hover:bg-white/85",
+  ghost: "bg-transparent text-muted hover:bg-white/55 hover:text-ink",
+  danger: "border border-[#f2cfd2] bg-[#fdf0f0]/85 text-danger shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] hover:bg-[#fbe3e4]",
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: "h-9 px-3.5 text-[13px] rounded-[10px] gap-1.5",
-  md: "h-11 px-5 text-[14px] rounded-xl gap-2",
-  lg: "h-13 px-7 text-[15px] rounded-2xl gap-2",
+  sm: "h-8 px-3.5 text-[12px] rounded-full gap-1.5",
+  md: "h-10 px-4.5 text-[13px] rounded-full gap-2",
+  lg: "h-12 px-6.5 text-[14px] rounded-full gap-2",
 };
 
 export function Button({
@@ -180,7 +180,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div
-        className="anim-fade absolute inset-0 bg-[rgba(20,20,24,0.28)] backdrop-blur-[3px]"
+        className="anim-fade absolute inset-0 bg-[rgba(13,26,46,0.32)] backdrop-blur-[6px]"
         onClick={onClose}
       />
       <div
@@ -188,11 +188,11 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "anim-rise relative z-10 max-h-[92vh] w-full overflow-hidden rounded-t-[26px] border border-line bg-white shadow-[0_40px_120px_-40px_rgba(16,24,40,0.5)] sm:rounded-[26px]",
+          "anim-rise relative z-10 max-h-[92vh] w-full overflow-hidden rounded-t-[1.75rem] border border-white/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.97)_0%,rgba(249,251,255,0.9)_100%)] shadow-[0_40px_120px_-40px_rgba(16,28,48,0.6)] backdrop-blur-2xl sm:rounded-[1.75rem]",
           wide ? "sm:max-w-3xl" : "sm:max-w-xl",
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-white/80 px-6 py-5">
           <div>
             <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{title}</h2>
             {description && <p className="mt-1 text-[13px] text-muted">{description}</p>}
@@ -200,14 +200,14 @@ export function Modal({
           <button
             onClick={onClose}
             aria-label="Kapat"
-            className="focus-ring -mr-1 -mt-1 rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
+            className="focus-ring -mr-1 -mt-1 rounded-full p-1.5 text-faint transition hover:bg-white/70 hover:text-ink"
           >
             <X className="size-4.5" />
           </button>
         </div>
         <div className="max-h-[calc(92vh-9rem)] overflow-y-auto px-6 py-5">{children}</div>
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-line bg-[#fcfcfe] px-6 py-4">
+          <div className="flex items-center justify-end gap-2 border-t border-white/80 bg-white/35 px-6 py-4 backdrop-blur-md">
             {footer}
           </div>
         )}
@@ -230,9 +230,9 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-[#fcfcfe] px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfdced] bg-white/40 px-6 py-14 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl">
       {icon && (
-        <div className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-white text-faint shadow-[0_2px_10px_-4px_rgba(16,24,40,0.2)]">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-2xl border border-white/90 bg-white/80 text-faint shadow-[0_2px_10px_-4px_rgba(16,24,40,0.2)]">
           {icon}
         </div>
       )}
@@ -253,13 +253,13 @@ export function Notice({
   children: ReactNode;
 }) {
   const tones = {
-    neutral: "border-line bg-[#fafafc] text-muted",
-    danger: "border-[#f6d5d6] bg-[#fdf4f4] text-danger",
-    success: "border-[#d6ecdf] bg-[#f2faf5] text-success",
-    warning: "border-[#f3e2c8] bg-[#fdf8ef] text-warning",
+    neutral: "border-white/85 bg-white/55 text-muted",
+    danger: "border-[#f2d3d5] bg-[#fdf4f4]/90 text-danger",
+    success: "border-[#d6ecdf] bg-[#f2faf5]/90 text-success",
+    warning: "border-[#f1e0c5] bg-[#fdf8ef]/90 text-warning",
   } as const;
   return (
-    <div className={cn("rounded-xl border px-3.5 py-2.5 text-[13px] leading-relaxed", tones[tone])}>
+    <div className={cn("rounded-xl border px-3.5 py-2.5 text-[13px] leading-relaxed shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-md", tones[tone])}>
       {children}
     </div>
   );

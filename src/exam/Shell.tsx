@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Check, Clock3 } from "lucide-react";
 import { cn, formatSeconds } from "../lib/utils";
 import type { Level } from "../lib/types";
+import { Brand } from "../components/Brand";
 
 export const SECTION_LABELS = [
   "Vocabulario y Gramática",
@@ -30,16 +32,15 @@ export function ExamShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-dvh bg-[radial-gradient(100%_60%_at_50%_-20%,#edf4ff_0%,#fbfbfd_55%)]">
-      <header className="sticky top-0 z-30 border-b border-[rgba(29,29,31,0.06)] glass-bar">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-4 px-5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[14.5px] font-semibold tracking-[-0.02em]">Examen</span>
-              <span className="font-display text-[17.5px] italic text-accent-ink">de Español</span>
-            </div>
-            <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
-              {level}
+    <div className="app-page min-h-dvh">
+      <header className="sticky top-0 z-40 px-3 pt-3 sm:px-5 sm:pt-4">
+        <div className="premium-nav mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-3.5 sm:px-4">
+          <div className="flex shrink-0 items-center gap-2.5">
+            <Link to="/cuenta" className="focus-ring -m-1 rounded-full p-1" aria-label="Mi panel">
+              <Brand compact />
+            </Link>
+            <span className="hidden rounded-full border border-white/80 bg-white/60 px-2.5 py-1 text-[10.5px] font-semibold tracking-[0.04em] text-muted sm:inline-flex">
+              Nivel {level}
             </span>
           </div>
 
@@ -47,15 +48,16 @@ export function ExamShell({
             {SECTION_LABELS.map((label, index) => {
               const active = index === activeIndex;
               const classes = cn(
-                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium whitespace-nowrap transition",
-                active && "bg-ink text-white",
-                !active && onSelectSection && "text-muted hover:bg-[#f2f2f5] hover:text-ink",
+                "focus-ring flex items-center gap-1.5 rounded-full px-3 py-2 text-[11.5px] font-medium whitespace-nowrap transition",
+                active &&
+                  "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_8px_20px_-14px_rgba(18,35,62,0.8)]",
+                !active && onSelectSection && "text-muted hover:bg-white/70 hover:text-ink",
                 !active && !onSelectSection && "text-faint",
               );
               const content = (
                 <>
-                  <span className={cn("text-[10px] tabular-nums", active && "text-white/70")}>
-                    {index + 1}
+                  <span className={cn("text-[9.5px] tabular-nums", active ? "text-white/60" : "text-faint")}>
+                    0{index + 1}
                   </span>
                   {label}
                   {active && <Check className="size-3" strokeWidth={3} />}
@@ -67,7 +69,7 @@ export function ExamShell({
                   type="button"
                   onClick={() => onSelectSection(index)}
                   aria-current={active ? "step" : undefined}
-                  className={cn("focus-ring", classes)}
+                  className={classes}
                 >
                   {content}
                 </button>
@@ -79,40 +81,43 @@ export function ExamShell({
             })}
           </nav>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2.5">
             {remainingSeconds !== undefined && <ExamTimer seconds={remainingSeconds} />}
-            <span className="text-[11.5px] font-medium text-muted lg:hidden">
+            <span className="text-[11px] font-semibold text-muted tabular-nums lg:hidden">
               {Math.min(activeIndex + 1, SECTION_LABELS.length)} / {SECTION_LABELS.length}
             </span>
           </div>
         </div>
 
         {onSelectSection && (
-          <div className="border-t border-[rgba(29,29,31,0.06)] lg:hidden">
-            <div className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-4 py-2">
-              {SECTION_SHORT_LABELS.map((label, index) => {
-                const active = index === activeIndex;
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => onSelectSection(index)}
-                    aria-current={active ? "step" : undefined}
-                    className={cn(
-                      "focus-ring shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-medium transition",
-                      active ? "bg-ink text-white" : "text-muted hover:bg-[#f2f2f5]",
-                    )}
-                  >
-                    {index + 1}. {label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="premium-nav mx-auto mt-2 flex max-w-6xl gap-1 overflow-x-auto p-1.5 lg:hidden">
+            {SECTION_SHORT_LABELS.map((label, index) => {
+              const active = index === activeIndex;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onSelectSection(index)}
+                  aria-current={active ? "step" : undefined}
+                  className={cn(
+                    "focus-ring shrink-0 rounded-full px-3 py-1.5 text-[11px] font-medium transition",
+                    active
+                      ? "bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] text-white shadow-[0_6px_16px_-12px_rgba(18,35,62,0.8)]"
+                      : "text-muted hover:bg-white/70 hover:text-ink",
+                  )}
+                >
+                  <span className={cn("mr-1 text-[9px] tabular-nums", active ? "text-white/60" : "text-faint")}>
+                    0{index + 1}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
 
-      <main className="mx-auto max-w-4xl px-5 py-8 pb-24 sm:px-8 sm:py-12">{children}</main>
+      <main className="mx-auto max-w-4xl px-5 py-8 pb-24 sm:px-8 sm:py-11">{children}</main>
     </div>
   );
 }
@@ -125,12 +130,12 @@ function ExamTimer({ seconds }: { seconds: number }) {
       role="timer"
       aria-label={`Tiempo restante: ${formatSeconds(seconds)}`}
       className={cn(
-        "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold tabular-nums transition-colors",
+        "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11.5px] font-semibold tabular-nums shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-md transition-colors",
         critical
-          ? "border-[#fbdada] bg-[#fdf0f0] text-danger"
+          ? "border-[#fbdada] bg-[#fdf0f0]/90 text-danger"
           : warning
-            ? "border-[#f4e6c8] bg-[#fdf8ec] text-warning"
-            : "border-line bg-white text-muted",
+            ? "border-[#f4e6c8] bg-[#fdf8ec]/90 text-warning"
+            : "border-white/85 bg-white/65 text-muted",
       )}
     >
       <Clock3 className={cn("size-3.5", critical && "animate-pulse")} />
@@ -153,13 +158,14 @@ export function StepHeader({
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="anim-rise">
-        <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+        <p className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.16em] text-faint uppercase">
+          <span className="size-1.5 rounded-full bg-gold" />
           Sección {index} de 4
         </p>
-        <h1 className="mt-2 text-[28px] leading-tight font-semibold tracking-[-0.03em] sm:text-[34px]">
+        <h1 className="mt-2.5 text-[30px] leading-[1.08] font-semibold tracking-[-0.04em] sm:text-[38px]">
           {title}
         </h1>
-        <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-muted">{description}</p>
+        <p className="mt-2.5 max-w-xl text-[13.5px] leading-relaxed text-muted">{description}</p>
       </div>
       {aside}
     </div>
@@ -184,12 +190,12 @@ export function StepFooter({
   loading?: boolean;
 }) {
   return (
-    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/70 pt-6">
       {onBack ? (
         <button
           type="button"
           onClick={onBack}
-          className="focus-ring rounded-xl px-3 py-2 text-[13px] font-medium text-muted transition hover:bg-[#f2f2f5] hover:text-ink"
+          className="focus-ring rounded-full border border-white/80 bg-white/55 px-4 py-2 text-[12.5px] font-medium text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] transition hover:bg-white/80 hover:text-ink"
         >
           ← {backLabel}
         </button>
@@ -198,12 +204,12 @@ export function StepFooter({
       )}
 
       <div className="flex items-center gap-3">
-        {hint && <span className="text-[12px] text-faint">{hint}</span>}
+        {hint && <span className="text-[11.5px] text-faint">{hint}</span>}
         <button
           type="button"
           onClick={onNext}
           disabled={nextDisabled || loading}
-          className="focus-ring inline-flex h-12 items-center gap-2 rounded-2xl bg-ink px-6 text-[14px] font-medium text-white transition hover:bg-black active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#c9c9cf] disabled:active:scale-100"
+          className="focus-ring inline-flex h-11 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] px-6 text-[13.5px] font-medium text-white shadow-[0_14px_30px_-18px_rgba(18,35,62,0.9),inset_0_1px_0_rgba(255,255,255,0.16)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#c9cfda] disabled:shadow-none disabled:active:scale-100"
         >
           {loading ? (
             <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />

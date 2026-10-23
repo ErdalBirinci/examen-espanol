@@ -49,10 +49,11 @@ export default function ReviewStep({
   return (
     <div>
       <div className="anim-rise">
-        <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
+        <p className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.16em] text-faint uppercase">
+          <span className="size-1.5 rounded-full bg-gold" />
           Antes de enviar
         </p>
-        <h1 className="mt-2 text-[30px] leading-tight font-semibold tracking-[-0.03em] sm:text-[38px]">
+        <h1 className="mt-2.5 text-[30px] leading-tight font-semibold tracking-[-0.04em] sm:text-[38px]">
           Revisa tu examen
         </h1>
         <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-muted">
@@ -61,7 +62,7 @@ export default function ReviewStep({
         </p>
       </div>
 
-      <div className="anim-rise mt-7 card divide-y divide-[#f1f1f4]">
+      <div className="anim-rise mt-7 card divide-y divide-white/60 overflow-hidden">
         <ReviewRow
           icon={ListChecks}
           title="Vocabulario y Gramática"
@@ -118,12 +119,12 @@ export default function ReviewStep({
         </div>
       )}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-white/70 pt-6">
         <button
           type="button"
           onClick={onBack}
           disabled={submitting}
-          className="focus-ring rounded-xl px-3 py-2 text-[13px] font-medium text-muted transition hover:bg-[#f2f2f5] hover:text-ink disabled:opacity-50"
+          className="focus-ring rounded-full border border-white/80 bg-white/55 px-4 py-2 text-[12.5px] font-medium text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] transition hover:bg-white/80 hover:text-ink disabled:opacity-50"
         >
           ← Volver a la expresión oral
         </button>
@@ -134,7 +135,7 @@ export default function ReviewStep({
             type="button"
             onClick={onSubmit}
             disabled={submitting}
-            className="focus-ring inline-flex h-12 items-center gap-2 rounded-2xl bg-ink px-7 text-[14px] font-medium text-white transition hover:bg-black active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#c9c9cf]"
+            className="focus-ring inline-flex h-12 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#16243d_0%,#2b4a7d_100%)] px-7 text-[13.5px] font-medium text-white shadow-[0_14px_30px_-18px_rgba(18,35,62,0.9),inset_0_1px_0_rgba(255,255,255,0.16)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#c9cfda] disabled:shadow-none"
           >
             {submitting && (
               <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -162,7 +163,7 @@ function ReviewRow({
 }) {
   return (
     <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#f3f3f6] text-muted">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/85 bg-white/60 text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
         <Icon className="size-4" strokeWidth={1.9} />
       </div>
       <div className="min-w-0 flex-1">

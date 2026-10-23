@@ -234,7 +234,7 @@ export default function SpeakingStep({
         title="Expresión oral"
         description="Prepara tu respuesta, graba con naturalidad y revisa la grabación antes de enviar."
         aside={
-          <div className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center">
+          <div className="glass-inset rounded-2xl px-4 py-2.5 text-center">
             <p className="text-[10.5px] font-medium tracking-[0.08em] text-faint uppercase">Duración máx.</p>
             <p className="mt-0.5 text-[17px] font-semibold tabular-nums">{formatSeconds(maxSeconds)}</p>
           </div>
@@ -242,8 +242,8 @@ export default function SpeakingStep({
       />
 
       <div className="anim-rise card overflow-hidden">
-        <div className="border-b border-line bg-gradient-to-br from-[#f6f3ff] to-white px-6 py-6 sm:px-8">
-          <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.1em] text-[#5b4bb7] uppercase">
+        <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,247,255,0.85),rgba(255,255,255,0.35))] px-6 py-6 sm:px-8">
+          <div className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.12em] text-accent-ink uppercase">
             <Volume2 className="size-3.5" />
             Tema para hablar
           </div>
@@ -256,7 +256,7 @@ export default function SpeakingStep({
         </div>
 
         <div className="px-6 py-6 sm:px-8">
-          <div className="mb-5 inline-flex rounded-xl bg-[#f2f2f5] p-1">
+          <div className="premium-segmented mb-5 inline-flex w-auto">
             {(
               [
                 { key: "record", label: "Grabar con micrófono", icon: Mic },
@@ -270,9 +270,10 @@ export default function SpeakingStep({
                   if (recording) return;
                   setMode(key);
                 }}
+                data-active={mode === key}
                 className={cn(
-                  "focus-ring flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition",
-                  mode === key ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink",
+                  "focus-ring flex items-center justify-center gap-1.5",
+                  recording && "cursor-not-allowed opacity-60",
                 )}
               >
                 <Icon className="size-3.5" />
@@ -282,18 +283,18 @@ export default function SpeakingStep({
           </div>
 
           {mode === "record" ? (
-            <div className="rounded-2xl border border-line bg-[#fcfcfe] p-6">
+            <div className="glass-inset rounded-2xl p-6">
               {prepRemaining > 0 ? (
                 <div className="flex flex-col items-center gap-3 py-2 text-center">
                   <div className="relative flex size-24 items-center justify-center">
                     <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
-                      <circle cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="#ecebf3" strokeWidth="5" />
+                      <circle cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="#e4eaf4" strokeWidth="5" />
                       <circle
                         cx="50"
                         cy="50"
                         r={RING_RADIUS}
                         fill="none"
-                        stroke="#6b5bd2"
+                        stroke="#2f6bff"
                         strokeWidth="5"
                         strokeLinecap="round"
                         strokeDasharray={RING_CIRCUMFERENCE}
@@ -331,7 +332,7 @@ export default function SpeakingStep({
                       "focus-ring relative flex size-24 items-center justify-center rounded-full transition active:scale-95",
                       recording
                         ? "bg-[#fdecec] text-danger ring-4 ring-[#fbdada]"
-                        : "bg-ink text-white shadow-[0_14px_40px_-16px_rgba(0,0,0,0.6)] hover:bg-black",
+                        : "bg-[linear-gradient(145deg,#1b2f4f,#2f5588)] text-white shadow-[0_18px_40px_-18px_rgba(18,35,62,0.9),inset_0_1px_0_rgba(255,255,255,0.2)] hover:brightness-110",
                     )}
                   >
                     {recording && (
@@ -364,7 +365,7 @@ export default function SpeakingStep({
                           key={index}
                           className={cn(
                             "w-[5px] rounded-full transition-[height] duration-100",
-                            recording ? "bg-[#6b5bd2]/70" : "bg-[#e4e2ee]",
+                            recording ? "bg-[#2f6bff]/70" : "bg-[#dbe6f5]",
                           )}
                           style={{ height: `${Math.round(level * 100)}%` }}
                         />
@@ -389,7 +390,7 @@ export default function SpeakingStep({
               )}
             </div>
           ) : (
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#d5d5dd] bg-[#fcfcfe] px-6 py-10 text-center transition hover:border-accent/50 hover:bg-accent-soft/40">
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#c9d9ee] bg-white/35 px-6 py-10 text-center backdrop-blur-xl transition hover:border-accent/50 hover:bg-white/65">
               <Upload className="size-6 text-faint" strokeWidth={1.6} />
               <span className="mt-3 text-[13.5px] font-medium">Selecciona un archivo de audio</span>
               <span className="mt-1 text-[12px] text-faint">MP3, WAV, M4A u OGG · máximo 50 MB</span>
@@ -403,7 +404,7 @@ export default function SpeakingStep({
           )}
 
           {value && previewUrl && (
-            <div className="mt-4 rounded-2xl border border-line bg-white p-3.5">
+            <div className="glass-inset mt-4 rounded-2xl p-3.5">
               <audio controls src={previewUrl} className="h-9 w-full" />
               <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[11.5px] text-faint">
