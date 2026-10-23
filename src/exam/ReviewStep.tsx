@@ -8,10 +8,12 @@ export default function ReviewStep({
   level,
   answered,
   totalQuestions,
-  transcribed,
+  listeningAnswered,
   totalListening,
   writingWords,
-  minWords,
+  writingWords2,
+  minWords1,
+  minWords2,
   hasRecording,
   submitting,
   error,
@@ -22,10 +24,12 @@ export default function ReviewStep({
   level: Level;
   answered: number;
   totalQuestions: number;
-  transcribed: number;
+  listeningAnswered: number;
   totalListening: number;
   writingWords: number;
-  minWords: number | null;
+  writingWords2: number;
+  minWords1: number | null;
+  minWords2: number | null;
   hasRecording: boolean;
   submitting: boolean;
   error: string | null;
@@ -36,11 +40,16 @@ export default function ReviewStep({
   if (totalQuestions > 0 && answered < totalQuestions) {
     warnings.push(`${totalQuestions - answered} pregunta(s) de vocabulario y gramática sin responder.`);
   }
-  if (totalListening > 0 && transcribed < totalListening) {
-    warnings.push(`${totalListening - transcribed} pista(s) de comprensión auditiva sin transcribir.`);
+  if (totalListening > 0 && listeningAnswered < totalListening) {
+    warnings.push(
+      `${totalListening - listeningAnswered} pregunta(s) de comprensión auditiva sin responder.`,
+    );
   }
-  if (minWords !== null && writingWords < minWords) {
-    warnings.push(`La expresión escrita tiene ${writingWords} palabras (mínimo ${minWords}).`);
+  if (minWords1 !== null && writingWords < minWords1) {
+    warnings.push(`La tarea 1 de escritura tiene ${writingWords} palabras (mínimo ${minWords1}).`);
+  }
+  if (minWords2 !== null && writingWords2 < minWords2) {
+    warnings.push(`La tarea 2 de escritura tiene ${writingWords2} palabras (mínimo ${minWords2}).`);
   }
   if (!hasRecording) {
     warnings.push("No has adjuntado ninguna grabación para la expresión oral.");
@@ -76,19 +85,19 @@ export default function ReviewStep({
           detail={
             totalListening === 0
               ? "Esta sección aún no está disponible"
-              : `${transcribed} de ${totalListening} pistas transcritas`
+              : `${listeningAnswered} de ${totalListening} preguntas respondidas`
           }
-          done={totalListening === 0 || transcribed === totalListening}
+          done={totalListening === 0 || listeningAnswered === totalListening}
           empty={totalListening === 0}
         />
         <ReviewRow
           icon={PenLine}
           title="Expresión Escrita"
-          detail={`${writingWords} palabras escritas${
-            minWords !== null ? ` · mínimo ${minWords}` : ""
-          }`}
+          detail={`${writingWords + writingWords2} palabras en total${
+            minWords1 !== null ? ` · tarea 1 mínimo ${minWords1}` : ""
+          }${minWords2 !== null ? ` · tarea 2 mínimo ${minWords2}` : ""}`}
           done={writingWords > 0}
-          empty={writingWords === 0}
+          empty={writingWords === 0 && writingWords2 === 0}
         />
         <ReviewRow
           icon={Mic}

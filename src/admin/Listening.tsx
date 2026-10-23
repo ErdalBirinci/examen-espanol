@@ -1,22 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
-import { Headphones, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Headphones, ListChecks, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   deleteListening,
+  deleteListeningQuestion,
+  listAllListeningQuestions,
   listListening,
   listeningAudioUrl,
   saveListening,
+  saveListeningQuestion,
   uploadListeningAudio,
 } from "../lib/api";
-import type { Level, ListeningItem } from "../lib/types";
+import type { Level, ListeningItem, ListeningQuestionAdmin } from "../lib/types";
 import { errorMessage, formatBytes } from "../lib/utils";
 import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
 
 const MAX_BYTES = 50 * 1024 * 1024;
+const LETTERS = ["A", "B", "C", "D"];
 
 export default function Listening() {
   const [level, setLevel] = useState<Level>("A1");
   const [items, setItems] = useState<ListeningItem[]>([]);
+  const [questions, setQuestions] = useState<ListeningQuestionAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -31,10 +36,31 @@ export default function Listening() {
   const [toDelete, setToDelete] = useState<ListeningItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Multiple-choice questions per audio track.
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [questionOpen, setQuestionOpen] = useState(false);
+  const [questionItemId, setQuestionItemId] = useState<string | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<ListeningQuestionAdmin | null>(null);
+  const [questionPrompt, setQuestionPrompt] = useState("");
+  const [questionOptions, setQuestionOptions] = useState(["", "", "", ""]);
+  const [questionCorrect, setQuestionCorrect] = useState(0);
+  const [questionPosition, setQuestionPosition] = useState(1);
+  const [questionSaving, setQuestionSaving] = useState(false);
+  const [questionError, setQuestionError] = useState<string | null>(null);
+  const [questionToDelete, setQuestionToDelete] = useState<ListeningQuestionAdmin | null>(null);
+  const [questionDeleting, setQuestionDeleting] = useState(false);
+
   const load = useCallback(async (target: Level) => {
     setLoading(true);
     try {
-      setItems(await listListening(target));
+      const [rows, allQuestions] = await Promise.all([
+        listListening(target),
+        listAllListeningQuestions(),
+      ]);
+      const ids = new Set(rows.map((row) => row.id));
+      setItems(rows);
+      setQuestions(allQuestions.filter((question) => ids.has(question.item_id)));
+      setExpanded(null);
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -46,6 +72,14 @@ export default function Listening() {
   useEffect(() => {
     void load(level);
   }, [level, load]);
+
+  const counts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const question of questions) {
+      map[question.item_id] = (map[question.item_id] ?? 0) + 1;
+    }
+    return map;
+  }, [questions]);
 
   function openCreate() {
     setEditing(null);
@@ -122,6 +156,7 @@ export default function Listening() {
     try {
       await deleteListening(toDelete);
       setItems((prev) => prev.filter((item) => item.id !== toDelete.id));
+      setQuestions((prev) => prev.filter((question) => question.item_id !== toDelete.id));
       setToDelete(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -130,11 +165,79 @@ export default function Listening() {
     }
   }
 
+  function openNewQuestion(itemId: string) {
+    const nextPosition = (counts[itemId] ?? 0) + 1;
+    setQuestionItemId(itemId);
+    setEditingQuestion(null);
+    setQuestionPrompt("");
+    setQuestionOptions(["", "", "", ""]);
+    setQuestionCorrect(0);
+    setQuestionPosition(nextPosition);
+    setQuestionError(null);
+    setQuestionOpen(true);
+  }
+
+  function openEditQuestion(question: ListeningQuestionAdmin) {
+    setQuestionItemId(question.item_id);
+    setEditingQuestion(question);
+    setQuestionPrompt(question.prompt);
+    setQuestionOptions([0, 1, 2, 3].map((index) => question.options[index] ?? ""));
+    setQuestionCorrect(question.correct_index);
+    setQuestionPosition(question.position);
+    setQuestionError(null);
+    setQuestionOpen(true);
+  }
+
+  async function submitQuestion(itemId: string) {
+    if (!questionPrompt.trim()) {
+      setQuestionError("Soru metni zorunlu.");
+      return;
+    }
+    if (questionOptions.some((option) => !option.trim())) {
+      setQuestionError("Dört seçeneğin hepsi doldurulmalı.");
+      return;
+    }
+    setQuestionSaving(true);
+    setQuestionError(null);
+    try {
+      await saveListeningQuestion({
+        id: editingQuestion?.id,
+        item_id: itemId,
+        prompt: questionPrompt,
+        options: questionOptions,
+        correct_index: questionCorrect,
+        position: Number(questionPosition) || 0,
+      });
+      setQuestionOpen(false);
+      const allQuestions = await listAllListeningQuestions();
+      const ids = new Set(items.map((row) => row.id));
+      setQuestions(allQuestions.filter((question) => ids.has(question.item_id)));
+    } catch (err) {
+      setQuestionError(errorMessage(err));
+    } finally {
+      setQuestionSaving(false);
+    }
+  }
+
+  async function handleDeleteQuestion() {
+    if (!questionToDelete) return;
+    setQuestionDeleting(true);
+    try {
+      await deleteListeningQuestion(questionToDelete.id);
+      setQuestions((prev) => prev.filter((question) => question.id !== questionToDelete.id));
+      setQuestionToDelete(null);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setQuestionDeleting(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Dinleme"
-        description="Her seviye için ses kayıtları yükle. Aday kaydı belirlenen sayıda dinleyip duyduğunu yazar."
+        description="Her seviye için ses kaydı yükle ve kaydın çoktan seçmeli sorularını tanımla. Sınavda her ses kaydı 10 soru ve 10 puanla değerlendirilir."
         action={
           <Button onClick={openCreate} icon={<Plus className="size-4" />}>
             Ses kaydı ekle
@@ -158,56 +261,142 @@ export default function Listening() {
         <EmptyState
           icon={<Headphones className="size-5" />}
           title={`${level} için dinleme kaydı yok`}
-          description="Ses dosyasını yükle; adaylar bu seviyede dinleme bölümünü görecek."
+          description="Ses dosyasını yükledikten sonra 10 soruluk testi ekleyebilirsin."
           action={<Button onClick={openCreate}>Ses kaydı ekle</Button>}
         />
       ) : (
         <div className="space-y-2.5">
-          {items.map((item) => (
-            <Panel key={item.id} className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Headphones className="size-3.5 text-accent" />
-                    <p className="text-[13.5px] font-medium">{item.title}</p>
+          {items.map((item) => {
+            const itemQuestions = questions.filter((question) => question.item_id === item.id);
+            const isExpanded = expanded === item.id;
+            const questionCount = counts[item.id] ?? 0;
+            return (
+              <Panel key={item.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Headphones className="size-3.5 text-accent" />
+                      <p className="text-[13.5px] font-medium">{item.title}</p>
+                    </div>
+                    <p className="mt-0.5 text-[11.5px] text-faint">
+                      Maksimum {item.max_plays} dinleme · sıra {item.position} ·{" "}
+                      <span
+                        className={
+                          questionCount === 10
+                            ? "font-medium text-success"
+                            : "font-medium text-warning"
+                        }
+                      >
+                        {questionCount} / 10 soru
+                      </span>
+                    </p>
+                    <audio
+                      controls
+                      preload="none"
+                      src={listeningAudioUrl(item.audio_path)}
+                      className="mt-2 h-9 w-full max-w-md"
+                    />
+                    {item.transcript && (
+                      <details className="mt-2 max-w-xl text-[11.5px] text-muted">
+                        <summary className="cursor-pointer text-faint transition hover:text-ink">
+                          Değerlendirme transkripti
+                        </summary>
+                        <p className="mt-1.5 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
+                      </details>
+                    )}
                   </div>
-                  <p className="mt-0.5 text-[11.5px] text-faint">
-                    Maksimum {item.max_plays} dinleme · sıra {item.position}
-                  </p>
-                  <audio
-                    controls
-                    preload="none"
-                    src={listeningAudioUrl(item.audio_path)}
-                    className="mt-2 h-9 w-full max-w-md"
-                  />
-                  {item.transcript && (
-                    <details className="mt-2 max-w-xl text-[11.5px] text-muted">
-                      <summary className="cursor-pointer text-faint transition hover:text-ink">
-                        Değerlendirme transkripti
-                      </summary>
-                      <p className="mt-1.5 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
-                    </details>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setExpanded(isExpanded ? null : item.id)}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11.5px] font-medium text-muted transition hover:bg-[#f3f3f6] hover:text-ink"
+                    >
+                      <ListChecks className="size-3.5" />
+                      Sorular
+                      <ChevronDown className={isExpanded ? "size-3.5 rotate-180 transition" : "size-3.5 transition"} />
+                    </button>
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
+                      aria-label="Düzenle"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setToDelete(item)}
+                      className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
+                      aria-label="Sil"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
-                    aria-label="Düzenle"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setToDelete(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
-                    aria-label="Sil"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            </Panel>
-          ))}
+
+                {isExpanded && (
+                  <div className="mt-4 rounded-xl border border-line bg-[#fcfcfe] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11.5px] font-semibold text-muted">
+                        Çoktan seçmeli sorular ({itemQuestions.length} / 10)
+                      </p>
+                      <Button
+                        variant="secondary"
+                        onClick={() => openNewQuestion(item.id)}
+                        icon={<Plus className="size-3.5" />}
+                      >
+                        Soru ekle
+                      </Button>
+                    </div>
+
+                    {itemQuestions.length === 0 ? (
+                      <p className="mt-3 text-[12px] text-faint">
+                        Bu kayıt için henüz soru yok. Adaylar sesi duyar ama cevaplayacak soru
+                        bulamaz; sınav öncesi 10 soru ekle.
+                      </p>
+                    ) : (
+                      <ol className="mt-3 space-y-2">
+                        {itemQuestions.map((question, index) => (
+                          <li
+                            key={question.id}
+                            className="rounded-lg border border-line bg-white px-3 py-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[12.5px] leading-snug">
+                                  <span className="mr-1.5 font-semibold text-faint tabular-nums">
+                                    {index + 1}.
+                                  </span>
+                                  {question.prompt}
+                                </p>
+                                <p className="mt-1 text-[11px] text-muted">
+                                  Doğru: {LETTERS[question.correct_index] ?? "?"} ·{" "}
+                                  {question.options[question.correct_index]}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <button
+                                  onClick={() => openEditQuestion(question)}
+                                  className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
+                                  aria-label="Soruyu düzenle"
+                                >
+                                  <Pencil className="size-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setQuestionToDelete(question)}
+                                  className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
+                                  aria-label="Soruyu sil"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                )}
+              </Panel>
+            );
+          })}
         </div>
       )}
 
@@ -292,13 +481,101 @@ export default function Listening() {
         </div>
       </Modal>
 
+      <Modal
+        open={questionOpen}
+        onClose={() => setQuestionOpen(false)}
+        title={editingQuestion ? "Dinleme sorusunu düzenle" : "Yeni dinleme sorusu"}
+        description="Dört seçenek ve tek doğru cevap. Her soru 1 puandır."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setQuestionOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              onClick={() => {
+                if (questionItemId) void submitQuestion(questionItemId);
+              }}
+              loading={questionSaving}
+            >
+              {editingQuestion ? "Güncelle" : "Kaydet"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {questionError && <Notice tone="danger">{questionError}</Notice>}
+
+          <Field label="Soru" hint="İspanyolca yaz. Ses kaydında geçen bilgiyi sor.">
+            <textarea
+              className="field min-h-[90px] resize-y"
+              placeholder="¿Qué compra la mujer en el mercado?"
+              value={questionPrompt}
+              onChange={(event) => setQuestionPrompt(event.target.value)}
+            />
+          </Field>
+
+          <div className="space-y-2">
+            <p className="text-[12px] font-medium text-muted">Seçenekler</p>
+            {questionOptions.map((option, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuestionCorrect(index)}
+                  aria-label={`${LETTERS[index]} doğru cevap`}
+                  className={
+                    questionCorrect === index
+                      ? "flex size-7 shrink-0 items-center justify-center rounded-full bg-success text-[11px] font-semibold text-white"
+                      : "flex size-7 shrink-0 items-center justify-center rounded-full bg-[#f3f3f6] text-[11px] font-semibold text-muted"
+                  }
+                >
+                  {LETTERS[index]}
+                </button>
+                <input
+                  className="field"
+                  placeholder={`${LETTERS[index]} seçeneği`}
+                  value={option}
+                  onChange={(event) =>
+                    setQuestionOptions((prev) =>
+                      prev.map((value, position) => (position === index ? event.target.value : value)),
+                    )
+                  }
+                />
+              </div>
+            ))}
+            <p className="text-[11px] text-faint">
+              Doğru cevabı işaretlemek için soldaki harfe tıkla. Seçili:{" "}
+              <span className="font-semibold text-success">{LETTERS[questionCorrect]}</span>
+            </p>
+          </div>
+
+          <Field label="Sıra">
+            <input
+              type="number"
+              min={0}
+              className="field"
+              value={questionPosition}
+              onChange={(event) => setQuestionPosition(Number(event.target.value))}
+            />
+          </Field>
+        </div>
+      </Modal>
+
       <ConfirmDialog
         open={Boolean(toDelete)}
         title="Dinleme kaydını sil"
-        description={toDelete ? `${toDelete.title} · ses dosyası da silinir` : ""}
+        description={toDelete ? `${toDelete.title} · ses dosyası ve soruları da silinir` : ""}
         loading={deleting}
         onConfirm={() => void handleDelete()}
         onClose={() => setToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(questionToDelete)}
+        title="Dinleme sorusunu sil"
+        description={questionToDelete?.prompt ?? ""}
+        loading={questionDeleting}
+        onConfirm={() => void handleDeleteQuestion()}
+        onClose={() => setQuestionToDelete(null)}
       />
     </div>
   );

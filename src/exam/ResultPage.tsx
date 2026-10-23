@@ -196,20 +196,44 @@ export default function ResultPage() {
 function ResultCard({ result }: { result: AttemptResult }) {
   const hidden = result.results_visible === false;
   const graded = !hidden && result.status === "graded" && result.total_score !== null;
-  const testPercent =
-    result.mc_total && result.mc_total > 0
-      ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 100)
-      : null;
+  const isNewScale = result.scoring_version >= 2;
 
   const rows = [
     {
       label: "Vocabulario y Gramática",
-      value: testPercent,
+      score: isNewScale
+        ? result.mc_score ??
+          (result.mc_total ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 50) : null)
+        : result.mc_total
+          ? Math.round(((result.mc_correct ?? 0) / result.mc_total) * 100)
+          : null,
+      max: isNewScale ? 50 : 100,
       detail: `${result.mc_correct ?? 0} de ${result.mc_total ?? 0} correctas`,
     },
-    { label: "Comprensión Auditiva", value: result.listening_score, detail: null },
-    { label: "Expresión Escrita", value: result.writing_score, detail: null },
-    { label: "Expresión Oral", value: result.speaking_score, detail: null },
+    {
+      label: "Comprensión Auditiva",
+      score: result.listening_score,
+      max: isNewScale ? 10 : 100,
+      detail:
+        isNewScale && result.listening_total
+          ? `${result.listening_correct ?? 0} de ${result.listening_total} correctas`
+          : null,
+    },
+    {
+      label: "Expresión Escrita",
+      score: result.writing_score,
+      max: isNewScale ? 20 : 100,
+      detail:
+        isNewScale && (result.writing_part1_score !== null || result.writing_part2_score !== null)
+          ? `Tarea 1: ${result.writing_part1_score ?? "—"}/10 · Tarea 2: ${result.writing_part2_score ?? "—"}/10`
+          : null,
+    },
+    {
+      label: "Expresión Oral",
+      score: result.speaking_score,
+      max: isNewScale ? 20 : 100,
+      detail: null,
+    },
   ];
 
   return (
@@ -255,13 +279,18 @@ function ResultCard({ result }: { result: AttemptResult }) {
                   {row.detail && <p className="text-[10.5px] text-faint">{row.detail}</p>}
                 </div>
                 <span className="text-[13px] font-semibold tabular-nums">
-                  {row.value === null ? "—" : `${row.value}%`}
+                  {row.score === null ? "—" : `${Math.round(Number(row.score))} / ${row.max}`}
                 </span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5ebf4]/80">
                 <div
                   className="h-full rounded-full bg-[linear-gradient(90deg,#2f6bff,#8fb3ff)] transition-[width] duration-700"
-                  style={{ width: `${Math.max(0, Math.min(100, row.value ?? 0))}%` }}
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(100, ((row.score ?? 0) / row.max) * 100),
+                    )}%`,
+                  }}
                 />
               </div>
             </div>
@@ -293,7 +322,7 @@ function ResultCard({ result }: { result: AttemptResult }) {
         <div className="border-t border-line px-6 py-4 sm:px-8">
           <p className="text-[11.5px] leading-relaxed text-faint">
             {graded
-              ? "La puntuación global combina las cuatro secciones: 40 % vocabulario y gramática, 20 % cada una de las destrezas."
+              ? "La puntuación global suma las cuatro secciones: 50 puntos de vocabulario y gramática, 10 de comprensión auditiva, 20 de expresión escrita y 20 de expresión oral."
               : "Las secciones de expresión se están evaluando manualmente. Cuando el equipo termine, esta misma consulta mostrará la puntuación global."}
           </p>
         </div>

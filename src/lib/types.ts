@@ -72,12 +72,32 @@ export interface ListeningItem {
   created_at?: string;
 }
 
+export interface ListeningQuestion {
+  id: string;
+  item_id: string;
+  prompt: string;
+  options: string[];
+  position: number;
+}
+
+export interface ListeningQuestionAdmin extends ListeningQuestion {
+  correct_index: number;
+  created_at: string;
+}
+
+/** The audio track and its questions for one attempt. */
+export interface ListeningExam {
+  item: Pick<ListeningItem, "id" | "level" | "title" | "audio_path" | "max_plays" | "position">;
+  questions: ListeningQuestion[];
+}
+
 export interface WritingPrompt {
   id: string;
   level: Level;
   prompt: string;
   min_words: number;
   position: number;
+  part: 1 | 2;
 }
 
 export interface SpeakingPrompt {
@@ -98,16 +118,26 @@ export interface Attempt {
   email: string;
   level: Level;
   status: AttemptStatus;
+  scoring_version: number;
   mc_answers: Record<string, number>;
   mc_correct: number | null;
   mc_total: number | null;
-  listening_answers: Record<string, string>;
+  mc_score: number | null;
+  test_question_ids: string[] | null;
+  listening_answers: Record<string, number>;
+  listening_question_ids: string[] | null;
+  listening_correct: number | null;
+  listening_total: number | null;
   writing_text: string | null;
+  writing_text_2: string | null;
   speaking_path: string | null;
   speaking_duration: number | null;
   listening_score: number | null;
+  writing_part1_score: number | null;
+  writing_part2_score: number | null;
   writing_score: number | null;
   speaking_score: number | null;
+  total_score: number | null;
   admin_note: string | null;
   result_notified_at?: string | null;
   created_at: string;
@@ -121,8 +151,8 @@ export interface ExamSettings {
 
 export interface ExamBundle {
   questions: QuestionPublic[];
-  listening: ListeningItem[];
-  writing: WritingPrompt | null;
+  listening: ListeningExam | null;
+  writing: WritingPrompt[];
   speaking: SpeakingPrompt | null;
   settings: ExamSettings;
 }
@@ -131,6 +161,7 @@ export interface ContentStats {
   level: Level;
   questions: number;
   listening: number;
+  listening_questions: number;
   writing: number;
   speaking: number;
 }
@@ -147,10 +178,16 @@ export interface AttemptResult {
   level: Level;
   status: AttemptStatus;
   submitted_at: string;
+  scoring_version: number;
   mc_correct: number | null;
   mc_total: number | null;
+  mc_score: number | null;
   listening_score: number | null;
+  listening_correct: number | null;
+  listening_total: number | null;
   writing_score: number | null;
+  writing_part1_score: number | null;
+  writing_part2_score: number | null;
   speaking_score: number | null;
   total_score: number | null;
   results_visible?: boolean;

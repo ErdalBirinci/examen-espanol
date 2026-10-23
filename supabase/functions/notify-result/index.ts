@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
   const { data: attempt, error: attemptError } = await admin
     .from("attempts")
     .select(
-      "id, full_name, email, level, status, mc_correct, mc_total, listening_score, writing_score, speaking_score, result_notified_at",
+      "id, full_name, email, level, status, scoring_version, mc_correct, mc_total, mc_score, listening_score, listening_correct, listening_total, writing_score, writing_part1_score, writing_part2_score, speaking_score, total_score, result_notified_at",
     )
     .eq("id", attemptId)
     .maybeSingle();
@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
   const from = Deno.env.get("RESULT_FROM_EMAIL");
   if (!resendKey || !from) return json({ error: "email_not_configured" }, 501);
 
+  const isNewScale = Number(attempt.scoring_version ?? 1) >= 2;
   const weightsReady =
     attempt.mc_total &&
     attempt.mc_total > 0 &&
@@ -90,34 +91,48 @@ Deno.serve(async (req) => {
     attempt.writing_score !== null &&
     attempt.speaking_score !== null;
 
-  const total = weightsReady
-    ? Math.round(
-        ((attempt.mc_correct ?? 0) / attempt.mc_total!) * 40 +
-          Number(attempt.listening_score) * 0.2 +
-          Number(attempt.writing_score) * 0.2 +
-          Number(attempt.speaking_score) * 0.2,
-      )
-    : null;
-
-  const testPercent =
-    attempt.mc_total && attempt.mc_total > 0
-      ? Math.round(((attempt.mc_correct ?? 0) / attempt.mc_total) * 100)
+  const total = isNewScale
+    ? attempt.total_score !== null
+      ? Math.round(Number(attempt.total_score))
+      : null
+    : weightsReady
+      ? Math.round(
+          ((attempt.mc_correct ?? 0) / attempt.mc_total!) * 40 +
+            Number(attempt.listening_score) * 0.2 +
+            Number(attempt.writing_score) * 0.2 +
+            Number(attempt.speaking_score) * 0.2,
+        )
       : null;
 
   const appUrl = (Deno.env.get("APP_PUBLIC_URL") ?? "").replace(/\/$/, "");
   const resultUrl = appUrl ? `${appUrl}/resultado` : "";
 
-  const rows = [
-    ["Vocabulario y Gramática", testPercent],
-    ["Comprensión Auditiva", attempt.listening_score],
-    ["Expresión Escrita", attempt.writing_score],
-    ["Expresión Oral", attempt.speaking_score],
-  ]
+  const sectionRows: Array<[string, number | null, number]> = isNewScale
+    ? [
+        ["Vocabulario y Gramática", attempt.mc_score, 50],
+        ["Comprensión Auditiva", attempt.listening_score, 10],
+        ["Expresión Escrita", attempt.writing_score, 20],
+        ["Expresión Oral", attempt.speaking_score, 20],
+      ]
+    : [
+        [
+          "Vocabulario y Gramática",
+          attempt.mc_total && attempt.mc_total > 0
+            ? Math.round(((attempt.mc_correct ?? 0) / attempt.mc_total) * 100)
+            : null,
+          100,
+        ],
+        ["Comprensión Auditiva", attempt.listening_score, 100],
+        ["Expresión Escrita", attempt.writing_score, 100],
+        ["Expresión Oral", attempt.speaking_score, 100],
+      ];
+
+  const rows = sectionRows
     .map(
-      ([label, value]) =>
+      ([label, value, max]) =>
         `<tr><td style="padding:6px 0;color:#5c5c66">${escapeHtml(String(label))}</td>
          <td style="padding:6px 0;text-align:right;font-weight:600">${
-           value === null ? "—" : `${Math.round(Number(value))}%`
+           value === null ? "—" : `${Math.round(Number(value))} / ${max}`
          }</td></tr>`,
     )
     .join("");

@@ -240,18 +240,19 @@ export default function Overview() {
           <div>
             <h2 className="text-[13.5px] font-semibold">İçerik tamlık matrisi</h2>
             <p className="mt-0.5 text-[11.5px] text-muted">
-              Hedef: en az 10 soru, 1 dinleme, 1 yazma ve 1 konuşma konusu.
+              Hedef: 50 test sorusu, 10 dinleme sorusu, 2 yazma ve 1 konuşma konusu.
             </p>
           </div>
           <span className="text-[11.5px] text-faint">{content.length} seviye</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-left">
+          <table className="w-full min-w-[600px] text-left">
             <thead>
               <tr className="border-b border-white/70 bg-white/35 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase">
                 <th className="px-5 py-2">Seviye</th>
                 <th className="px-3 py-2">Soru</th>
                 <th className="px-3 py-2">Dinleme</th>
+                <th className="px-3 py-2">Dinleme s.</th>
                 <th className="px-3 py-2">Yazma</th>
                 <th className="px-3 py-2">Konuşma</th>
                 <th className="px-5 py-2 text-right">Durum</th>
@@ -261,9 +262,10 @@ export default function Overview() {
               {LEVELS.map((level) => {
                 const row = content.find((entry) => entry.level === level);
                 const cells = [
-                  { value: row?.questions ?? 0, target: 10 },
+                  { value: row?.questions ?? 0, target: 50 },
                   { value: row?.listening ?? 0, target: 1 },
-                  { value: row?.writing ?? 0, target: 1 },
+                  { value: row?.listening_questions ?? 0, target: 10 },
+                  { value: row?.writing ?? 0, target: 2 },
                   { value: row?.speaking ?? 0, target: 1 },
                 ];
                 const complete = cells.every((cell) => cell.value >= cell.target);

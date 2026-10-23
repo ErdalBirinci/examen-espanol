@@ -22,8 +22,8 @@ import {
   deleteExamDraft,
   getAssignment,
   getCandidateAccount,
+  getExamBundle,
   getExamDraft,
-  loadExamBundle,
   resumeExamDraft,
   saveExamDraft,
   startExamDraft,
@@ -40,8 +40,9 @@ const SESSION_PREFIX = "examen-espanol:session";
 
 interface Draft {
   mcAnswers: Record<string, number>;
-  listeningAnswers: Record<string, string>;
+  listeningAnswers: Record<string, number>;
   writing: string;
+  writing2: string;
   startedAt: number | null;
   stage?: Stage;
 }
@@ -62,14 +63,15 @@ export default function ExamPage() {
   const sessionKey = candidate && assignmentId ? `${SESSION_PREFIX}:${candidate.email}:${assignmentId}` : "";
 
   const [bundle, setBundle] = useState<ExamBundle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("intro");
   const [startSection, setStartSection] = useState<SectionStage>("test");
 
   const [mcAnswers, setMcAnswers] = useState<Record<string, number>>({});
-  const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
+  const [listeningAnswers, setListeningAnswers] = useState<Record<string, number>>({});
   const [writing, setWriting] = useState("");
+  const [writing2, setWriting2] = useState("");
   const [recording, setRecording] = useState<RecordingPayload | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -128,22 +130,17 @@ export default function ExamPage() {
     };
   }, [assignmentId]);
 
-  const fetchBundle = useCallback(async () => {
-    if (!level) return;
+  const loadBundle = useCallback(async (token: string) => {
     setLoading(true);
     setLoadError(null);
     try {
-      setBundle(await loadExamBundle(level));
+      setBundle(await getExamBundle(token));
     } catch (error) {
       setLoadError(errorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [level]);
-
-  useEffect(() => {
-    void fetchBundle();
-  }, [fetchBundle]);
+  }, []);
 
   // Restore a previous draft so a refresh mid-exam does not lose work.
   useEffect(() => {
@@ -159,6 +156,7 @@ export default function ExamPage() {
           if (draft.mcAnswers) setMcAnswers(draft.mcAnswers);
           if (draft.listeningAnswers) setListeningAnswers(draft.listeningAnswers);
           if (typeof draft.writing === "string") setWriting(draft.writing);
+          if (typeof draft.writing2 === "string") setWriting2(draft.writing2);
           if (typeof draft.startedAt === "number") setStartedAt(draft.startedAt);
           if (isSectionStage(draft.stage) || draft.stage === "review") {
             setStage(draft.stage);
@@ -183,6 +181,7 @@ export default function ExamPage() {
           return;
         }
         applyDraftSnapshot(snapshot);
+        await loadBundle(snapshot.token);
       } catch {
         /* keep the local copy if the server is unreachable */
       }
@@ -206,20 +205,23 @@ export default function ExamPage() {
       mcAnswers,
       listeningAnswers,
       writing,
+      writing2,
       startedAt,
       stage: stage === "intro" ? undefined : stage,
     };
     localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, startedAt, stage]);
+  }, [draftKey, hydrated, mcAnswers, listeningAnswers, writing, writing2, startedAt, stage]);
 
   // Mirror the answers to the server so another device can resume the exam.
   useEffect(() => {
     if (!draftToken || !hydrated || !startedAt || stage === "done") return;
     const timer = window.setTimeout(() => {
-      void saveExamDraft(draftToken, mcAnswers, listeningAnswers, writing).catch(() => undefined);
+      void saveExamDraft(draftToken, mcAnswers, listeningAnswers, writing, writing2).catch(
+        () => undefined,
+      );
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [draftToken, hydrated, startedAt, stage, mcAnswers, listeningAnswers, writing]);
+  }, [draftToken, hydrated, startedAt, stage, mcAnswers, listeningAnswers, writing, writing2]);
 
   const durationMinutes =
     assignment?.duration_minutes ?? bundle?.settings.duration_minutes ?? 60;
@@ -243,37 +245,46 @@ export default function ExamPage() {
     code: string;
     started_at: string;
     mc_answers: Record<string, number>;
-    listening_answers: Record<string, string>;
+    listening_answers: Record<string, number>;
     writing_text: string;
+    writing_text_2: string;
   }) {
     setDraftToken(snapshot.token);
     setDraftCode(snapshot.code);
     setMcAnswers(snapshot.mc_answers ?? {});
     setListeningAnswers(snapshot.listening_answers ?? {});
     setWriting(snapshot.writing_text ?? "");
+    setWriting2(snapshot.writing_text_2 ?? "");
     setStartedAt(new Date(snapshot.started_at).getTime());
   }
 
   async function beginExam(section: SectionStage) {
-    if (expired || !candidate || !level || draftBusy) return;
+    if (expired || !candidate || !level || !assignmentId || draftBusy) return;
     setDraftBusy(true);
+    setSubmitError(null);
     try {
-      const draft = await startExamDraft(candidate, level);
-      setDraftToken(draft.token);
-      setDraftCode(draft.code);
-      setStartedAt(new Date(draft.startedAt).getTime());
-      try {
-        localStorage.setItem(sessionKey, JSON.stringify({ token: draft.token, code: draft.code }));
-      } catch {
-        /* storage can be unavailable */
+      let token = draftToken;
+      if (!token) {
+        const draft = await startExamDraft(candidate, level, assignmentId);
+        token = draft.token;
+        setDraftToken(draft.token);
+        setDraftCode(draft.code);
+        setStartedAt(new Date(draft.startedAt).getTime());
+        try {
+          localStorage.setItem(sessionKey, JSON.stringify({ token: draft.token, code: draft.code }));
+        } catch {
+          /* storage can be unavailable */
+        }
       }
+      if (!bundle) {
+        await loadBundle(token);
+      }
+      setStage(section);
     } catch (error) {
-      // The exam can still start locally; the draft will not sync across devices.
-      setStartedAt((current) => current ?? Date.now());
       setSubmitError(errorMessage(error));
+      setLoadError(errorMessage(error));
     } finally {
       setDraftBusy(false);
-      setStage(section);
     }
   }
 
@@ -288,6 +299,7 @@ export default function ExamPage() {
         return;
       }
       applyDraftSnapshot(snapshot);
+      await loadBundle(snapshot.token);
       try {
         localStorage.setItem(sessionKey, JSON.stringify({ token: snapshot.token, code: snapshot.code }));
       } catch {
@@ -303,6 +315,11 @@ export default function ExamPage() {
 
   const handleSubmit = useCallback(async () => {
     if (!candidate || !level || submitRef.current) return;
+    if (!draftToken) {
+      setSubmitError("Sınav oturumu bulunamadı. Sayfayı yenileyip sınava yeniden başla.");
+      setStage("review");
+      return;
+    }
     submitRef.current = true;
     setSubmitting(true);
     setSubmitError(null);
@@ -317,9 +334,11 @@ export default function ExamPage() {
         mcAnswers,
         listeningAnswers,
         writingText: writing,
+        writingText2: writing2,
         speakingPath,
         speakingDuration: recording?.duration ?? null,
         assignmentId: assignmentId ?? "",
+        draftToken,
       });
       setAttemptCode(id.slice(0, 8).toUpperCase());
       try {
@@ -337,7 +356,20 @@ export default function ExamPage() {
       submitRef.current = false;
       setSubmitting(false);
     }
-  }, [candidate, level, mcAnswers, listeningAnswers, writing, recording, draftKey, sessionKey, draftCode]);
+  }, [
+    candidate,
+    level,
+    mcAnswers,
+    listeningAnswers,
+    writing,
+    writing2,
+    recording,
+    draftKey,
+    sessionKey,
+    draftCode,
+    draftToken,
+    assignmentId,
+  ]);
 
   // Time is up: submit whatever has been answered, from any active section.
   useEffect(() => {
@@ -403,7 +435,9 @@ export default function ExamPage() {
         draftCode={draftCode}
         startSection={startSection}
         onSelectStart={setStartSection}
-        onRetry={() => void fetchBundle()}
+        onRetry={() => {
+          if (draftToken) void loadBundle(draftToken);
+        }}
         onStart={() => void beginExam(startSection)}
         onResume={(code, email) => void handleResume(code, email, startSection)}
         onSubmit={() => void handleSubmit()}
@@ -426,7 +460,12 @@ export default function ExamPage() {
       ) : loadError ? (
         <div className="card p-8 text-center">
           <Notice tone="danger">{loadError}</Notice>
-          <Button className="mt-4" onClick={() => void fetchBundle()}>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              if (draftToken) void loadBundle(draftToken);
+            }}
+          >
             Reintentar
           </Button>
         </div>
@@ -446,10 +485,10 @@ export default function ExamPage() {
 
           {stage === "listening" && (
             <ListeningStep
-              items={bundle.listening}
+              listening={bundle.listening}
               answers={listeningAnswers}
-              onChange={(itemId, text) =>
-                setListeningAnswers((prev) => ({ ...prev, [itemId]: text }))
+              onChange={(questionId, optionIndex) =>
+                setListeningAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
               }
               onNext={() => setStage("writing")}
               onBack={() => setStage("test")}
@@ -458,9 +497,10 @@ export default function ExamPage() {
 
           {stage === "writing" && (
             <WritingStep
-              prompt={bundle.writing}
-              value={writing}
-              onChange={setWriting}
+              prompts={bundle.writing}
+              value1={writing}
+              value2={writing2}
+              onChange={(part, text) => (part === 1 ? setWriting(text) : setWriting2(text))}
               onNext={() => setStage("speaking")}
               onBack={() => setStage("listening")}
             />
@@ -482,10 +522,18 @@ export default function ExamPage() {
               level={level}
               answered={bundle.questions.filter((question) => mcAnswers[question.id] !== undefined).length}
               totalQuestions={bundle.questions.length}
-              transcribed={bundle.listening.filter((item) => (listeningAnswers[item.id] ?? "").trim()).length}
-              totalListening={bundle.listening.length}
+              listeningAnswered={
+                bundle.listening
+                  ? bundle.listening.questions.filter(
+                      (question) => listeningAnswers[question.id] !== undefined,
+                    ).length
+                  : 0
+              }
+              totalListening={bundle.listening?.questions.length ?? 0}
               writingWords={wordCount(writing)}
-              minWords={bundle.writing?.min_words ?? null}
+              writingWords2={wordCount(writing2)}
+              minWords1={bundle.writing.find((prompt) => prompt.part === 1)?.min_words ?? null}
+              minWords2={bundle.writing.find((prompt) => prompt.part === 2)?.min_words ?? null}
               hasRecording={Boolean(recording)}
               submitting={submitting}
               error={submitError}
@@ -552,15 +600,22 @@ function IntroScreen({
       stage: "test",
       icon: ListChecks,
       title: "Vocabulario y Gramática",
-      detail: `${bundle?.questions.length ?? "—"} preguntas`,
+      detail: bundle ? `${bundle.questions.length} preguntas` : "50 preguntas",
     },
     {
       stage: "listening",
       icon: Headphones,
       title: "Comprensión Auditiva",
-      detail: `${bundle?.listening.length ?? "—"} pistas`,
+      detail: bundle?.listening
+        ? `${bundle.listening.questions.length} preguntas`
+        : "10 preguntas",
     },
-    { stage: "writing", icon: PenLine, title: "Expresión Escrita", detail: "1 composición" },
+    {
+      stage: "writing",
+      icon: PenLine,
+      title: "Expresión Escrita",
+      detail: bundle ? `${bundle.writing.length} tareas` : "2 tareas",
+    },
     { stage: "speaking", icon: Mic, title: "Expresión oral", detail: "1 grabación" },
   ];
   const selectedSection = sections.find((section) => section.stage === startSection) ?? sections[0];

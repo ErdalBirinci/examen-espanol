@@ -15,8 +15,8 @@ import type {
   ExamSettings,
   Level,
   ListeningItem,
+  ListeningQuestionAdmin,
   QuestionAdmin,
-  QuestionPublic,
   SpeakingPrompt,
   WritingPrompt,
 } from "./types";
@@ -31,55 +31,20 @@ function fail(message: string): never {
 /*  Aday tarafı (anon)                                                */
 /* ------------------------------------------------------------------ */
 
-export async function loadExamBundle(level: Level): Promise<ExamBundle> {
-  const [questionsRes, listeningRes, writingRes, speakingRes, settingsRes] = await Promise.all([
-    supabase
-      .from("questions_public")
-      .select("id, level, prompt, options, position")
-      .eq("level", level)
-      .order("position", { ascending: true })
-      .order("created_at", { ascending: true })
-      .limit(50),
-    supabase
-      .from("listening_items")
-      .select("*")
-      .eq("level", level)
-      .order("position", { ascending: true })
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("writing_prompts")
-      .select("id, level, prompt, min_words, position")
-      .eq("level", level)
-      .order("position", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("speaking_prompts")
-      .select("id, level, prompt, guidance, prep_seconds, max_seconds, position")
-      .eq("level", level)
-      .order("position", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("exam_settings")
-      .select("level, duration_minutes")
-      .eq("level", level)
-      .maybeSingle(),
-  ]);
-
-  if (questionsRes.error) fail(`Sorular yüklenemedi: ${questionsRes.error.message}`);
-  if (listeningRes.error) fail(`Dinleme bölümü yüklenemedi: ${listeningRes.error.message}`);
-  if (writingRes.error) fail(`Yazma bölümü yüklenemedi: ${writingRes.error.message}`);
-  if (speakingRes.error) fail(`Konuşma bölümü yüklenemedi: ${speakingRes.error.message}`);
-
-  return {
-    questions: (questionsRes.data ?? []) as unknown as QuestionPublic[],
-    listening: (listeningRes.data ?? []) as unknown as ListeningItem[],
-    writing: (writingRes.data as unknown as WritingPrompt | null) ?? null,
-    speaking: (speakingRes.data as unknown as SpeakingPrompt | null) ?? null,
-    settings:
-      (settingsRes.data as unknown as ExamSettings | null) ?? { level, duration_minutes: 60 },
-  };
+/**
+ * Content for one attempt. The server has already picked the random question
+ * set, so the browser only receives the questions this candidate will answer.
+ */
+export async function getExamBundle(token: string): Promise<ExamBundle> {
+  const { data, error } = await supabase.rpc("exam_bundle", { p_token: token });
+  if (error) {
+    if ((error.message ?? "").includes("DRAFT_NOT_FOUND")) {
+      fail("Sınav oturumu bulunamadı. Sayfayı yenileyip sınava yeniden başla.");
+    }
+    fail(`Sınav içeriği yüklenemedi: ${error.message}`);
+  }
+  if (!data) fail("Sınav içeriği boş döndü. Sayfayı yenileyip yeniden dene.");
+  return data as unknown as ExamBundle;
 }
 
 export async function uploadSpeakingRecording(blob: Blob, extension: string): Promise<string> {
@@ -99,11 +64,13 @@ export interface SubmitAttemptInput {
   candidate: Candidate;
   level: Level;
   mcAnswers: Record<string, number>;
-  listeningAnswers: Record<string, string>;
+  listeningAnswers: Record<string, number>;
   writingText: string;
+  writingText2: string;
   speakingPath: string | null;
   speakingDuration: number | null;
   assignmentId: string;
+  draftToken: string;
 }
 
 export async function submitAttempt(input: SubmitAttemptInput): Promise<string> {
@@ -116,9 +83,11 @@ export async function submitAttempt(input: SubmitAttemptInput): Promise<string> 
     p_mc_answers: input.mcAnswers,
     p_listening_answers: input.listeningAnswers,
     p_writing_text: input.writingText,
+    p_writing_text_2: input.writingText2,
     p_speaking_path: input.speakingPath,
     p_speaking_duration: input.speakingDuration,
     p_assignment_id: input.assignmentId,
+    p_draft_token: input.draftToken,
   });
 
   if (error) {
@@ -141,6 +110,12 @@ export async function submitAttempt(input: SubmitAttemptInput): Promise<string> 
     if (message.includes("LEVEL_MISMATCH")) {
       fail("Sınav seviyesi atamayla uyuşmuyor.");
     }
+    if (message.includes("DRAFT_REQUIRED") || message.includes("DRAFT_NOT_FOUND")) {
+      fail("Sınav oturumu bulunamadı. Sayfayı yenileyip sınava yeniden başla.");
+    }
+    if (message.includes("DRAFT_MISMATCH")) {
+      fail("Sınav oturumu bu atamayla eşleşmiyor. Sayfayı yenileyip yeniden başla.");
+    }
     if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
     if (message.includes("INVALID_NAME")) fail("Ad ve soyad geçersiz görünüyor.");
     if (message.includes("WRITING_TOO_LONG")) fail("Yazma cevabı izin verilen uzunluğu aşıyor.");
@@ -160,35 +135,64 @@ export interface ExamDraftSnapshot {
   started_at: string;
   updated_at: string;
   mc_answers: Record<string, number>;
-  listening_answers: Record<string, string>;
+  listening_answers: Record<string, number>;
   writing_text: string;
+  writing_text_2: string;
 }
 
 export async function startExamDraft(
   candidate: Candidate,
   level: Level,
-): Promise<{ token: string; code: string; startedAt: string }> {
+  assignmentId: string,
+): Promise<{
+  token: string;
+  code: string;
+  startedAt: string;
+  testQuestions: number;
+  listeningQuestions: number;
+}> {
   const { data, error } = await supabase.rpc("start_exam_draft", {
     p_level: level,
     p_full_name: `${candidate.firstName} ${candidate.lastName}`.trim(),
     p_email: candidate.email.trim().toLowerCase(),
+    p_assignment_id: assignmentId,
   });
-  if (error) fail(`Sınav taslağı başlatılamadı: ${error.message}`);
-  const row = data as { token: string; code: string; started_at: string };
-  return { token: row.token, code: row.code, startedAt: row.started_at };
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("ALREADY_SUBMITTED")) fail("Bu sınav daha önce gönderilmiş.");
+    if (message.includes("ASSIGNMENT_NOT_FOUND")) fail("Bu sınav ataması bulunamadı.");
+    if (message.includes("ASSIGNMENT_MISMATCH")) fail("Bu sınav bu e-posta adresine atanmamış.");
+    fail(`Sınav taslağı başlatılamadı: ${message}`);
+  }
+  const row = data as {
+    token: string;
+    code: string;
+    started_at: string;
+    test_questions?: number;
+    listening_questions?: number;
+  };
+  return {
+    token: row.token,
+    code: row.code,
+    startedAt: row.started_at,
+    testQuestions: row.test_questions ?? 0,
+    listeningQuestions: row.listening_questions ?? 0,
+  };
 }
 
 export async function saveExamDraft(
   token: string,
   mcAnswers: Record<string, number>,
-  listeningAnswers: Record<string, string>,
+  listeningAnswers: Record<string, number>,
   writing: string,
+  writing2: string,
 ): Promise<void> {
   const { error } = await supabase.rpc("save_exam_draft", {
     p_token: token,
     p_mc_answers: mcAnswers,
     p_listening_answers: listeningAnswers,
     p_writing_text: writing,
+    p_writing_text_2: writing2,
   });
   if (error) fail(`Taslak kaydedilemedi: ${error.message}`);
 }
@@ -601,13 +605,20 @@ export interface ManagedAttempt {
   id: string;
   level: Level;
   status: "submitted" | "graded";
+  scoring_version: number;
   created_at: string;
   submitted_at: string;
   mc_correct: number | null;
   mc_total: number | null;
+  mc_score: number | null;
+  listening_correct: number | null;
+  listening_total: number | null;
   listening_score: number | null;
   writing_score: number | null;
+  writing_part1_score: number | null;
+  writing_part2_score: number | null;
   speaking_score: number | null;
+  total_score: number | null;
   certificate_code: string | null;
   certificate_issued_at: string | null;
   result_notified_at: string | null;
@@ -738,14 +749,37 @@ export async function listAttemptsPage(query: AttemptQuery): Promise<AttemptPage
 
 export interface GradeInput {
   id: string;
-  listening_score: number | null;
-  writing_score: number | null;
+  scoring_version: number;
+  writing_part1_score: number | null;
+  writing_part2_score: number | null;
   speaking_score: number | null;
   admin_note: string | null;
-  status: "graded" | "submitted";
+  // Legacy (scoring_version = 1) attempts keep the old manual fields.
+  writing_score?: number | null;
+  listening_score?: number | null;
 }
 
 export async function gradeAttempt(input: GradeInput): Promise<void> {
+  if (input.scoring_version >= 2) {
+    const { error } = await supabase.rpc("admin_grade_attempt", {
+      p_attempt_id: input.id,
+      p_writing_part1: input.writing_part1_score,
+      p_writing_part2: input.writing_part2_score,
+      p_speaking: input.speaking_score,
+      p_note: input.admin_note,
+    });
+    if (error) {
+      const message = error.message ?? "";
+      if (message.includes("INCOMPLETE_GRADING")) {
+        fail("Yazma bölümlerinin ikisi ve konuşma puanı girilmeden değerlendirme tamamlanamaz.");
+      }
+      if (message.includes("INVALID_WRITING_SCORE")) fail("Yazma puanları 0–10 arasında olmalı.");
+      if (message.includes("INVALID_SPEAKING_SCORE")) fail("Konuşma puanı 0–20 arasında olmalı.");
+      fail(`Değerlendirme kaydedilemedi: ${message}`);
+    }
+    return;
+  }
+
   const { error } = await supabase
     .from("attempts")
     .update({
@@ -753,7 +787,7 @@ export async function gradeAttempt(input: GradeInput): Promise<void> {
       writing_score: input.writing_score,
       speaking_score: input.speaking_score,
       admin_note: input.admin_note,
-      status: input.status,
+      status: input.writing_score !== null && input.speaking_score !== null ? "graded" : "submitted",
     })
     .eq("id", input.id);
   if (error) fail(`Değerlendirme kaydedilemedi: ${error.message}`);
@@ -910,6 +944,56 @@ export async function deleteListening(item: ListeningItem): Promise<void> {
   await supabase.storage.from(MEDIA_BUCKET).remove([item.audio_path]);
 }
 
+export async function listAllListeningQuestions(): Promise<ListeningQuestionAdmin[]> {
+  const { data, error } = await supabase
+    .from("listening_questions")
+    .select("*")
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) fail(`Dinleme soruları yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as ListeningQuestionAdmin[];
+}
+
+export async function listListeningQuestions(itemId: string): Promise<ListeningQuestionAdmin[]> {
+  const { data, error } = await supabase
+    .from("listening_questions")
+    .select("*")
+    .eq("item_id", itemId)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) fail(`Dinleme soruları yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as ListeningQuestionAdmin[];
+}
+
+export interface ListeningQuestionInput {
+  id?: string;
+  item_id: string;
+  prompt: string;
+  options: string[];
+  correct_index: number;
+  position: number;
+}
+
+export async function saveListeningQuestion(input: ListeningQuestionInput): Promise<void> {
+  const payload = {
+    item_id: input.item_id,
+    prompt: input.prompt.trim(),
+    options: input.options.map((option) => option.trim()),
+    correct_index: input.correct_index,
+    position: input.position,
+  };
+  const query = input.id
+    ? supabase.from("listening_questions").update(payload).eq("id", input.id)
+    : supabase.from("listening_questions").insert(payload);
+  const { error } = await query;
+  if (error) fail(`Dinleme sorusu kaydedilemedi: ${error.message}`);
+}
+
+export async function deleteListeningQuestion(id: string): Promise<void> {
+  const { error } = await supabase.from("listening_questions").delete().eq("id", id);
+  if (error) fail(`Dinleme sorusu silinemedi: ${error.message}`);
+}
+
 export async function uploadListeningAudio(file: File): Promise<string> {
   if (file.size > MAX_AUDIO_BYTES) fail("Ses dosyası 50 MB sınırını aşıyor.");
   const path = `listening/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -931,8 +1015,9 @@ export function listeningAudioUrl(path: string): string {
 export async function listWriting(level: Level): Promise<WritingPrompt[]> {
   const { data, error } = await supabase
     .from("writing_prompts")
-    .select("id, level, prompt, min_words, position")
+    .select("id, level, prompt, min_words, position, part")
     .eq("level", level)
+    .order("part", { ascending: true })
     .order("position", { ascending: true });
   if (error) fail(`Yazma konuları yüklenemedi: ${error.message}`);
   return (data ?? []) as unknown as WritingPrompt[];
@@ -944,6 +1029,7 @@ export interface WritingInput {
   prompt: string;
   min_words: number;
   position: number;
+  part: 1 | 2;
 }
 
 export async function saveWriting(input: WritingInput): Promise<void> {
@@ -952,6 +1038,7 @@ export async function saveWriting(input: WritingInput): Promise<void> {
     prompt: input.prompt.trim(),
     min_words: input.min_words,
     position: input.position,
+    part: input.part,
   };
   const query = input.id
     ? supabase.from("writing_prompts").update(payload).eq("id", input.id)
@@ -1034,6 +1121,7 @@ export async function exportBackup(): Promise<string> {
   const tables = [
     "questions",
     "listening_items",
+    "listening_questions",
     "writing_prompts",
     "speaking_prompts",
     "attempts",

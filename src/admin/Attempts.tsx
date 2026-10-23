@@ -3,13 +3,21 @@ import { ChevronDown, Download, Search, Trash2 } from "lucide-react";
 import {
   deleteAttempt,
   gradeAttempt,
+  listAllListeningQuestions,
   listAttemptsPage,
   listListening,
   listQuestions,
   notifyAttemptResult,
   signedRecordingUrl,
 } from "../lib/api";
-import { LEVELS, type Attempt, type Level, type ListeningItem, type QuestionAdmin } from "../lib/types";
+import {
+  LEVELS,
+  type Attempt,
+  type Level,
+  type ListeningItem,
+  type ListeningQuestionAdmin,
+  type QuestionAdmin,
+} from "../lib/types";
 import { cn, errorMessage, formatDate, formatSeconds } from "../lib/utils";
 import { attemptTotal } from "../lib/scoring";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
@@ -276,12 +284,16 @@ function AttemptDetail({
 }) {
   const [questions, setQuestions] = useState<QuestionAdmin[]>([]);
   const [listening, setListening] = useState<ListeningItem[]>([]);
+  const [listeningQuestions, setListeningQuestions] = useState<ListeningQuestionAdmin[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showAnswers, setShowAnswers] = useState(false);
   const [scores, setScores] = useState({
-    listening: attempt.listening_score?.toString() ?? "",
-    writing: attempt.writing_score?.toString() ?? "",
+    part1: attempt.writing_part1_score?.toString() ?? "",
+    part2: attempt.writing_part2_score?.toString() ?? "",
     speaking: attempt.speaking_score?.toString() ?? "",
+    legacyListening: attempt.listening_score?.toString() ?? "",
+    legacyWriting: attempt.writing_score?.toString() ?? "",
+    legacySpeaking: attempt.speaking_score?.toString() ?? "",
     note: attempt.admin_note ?? "",
   });
   const [saving, setSaving] = useState(false);
@@ -293,9 +305,28 @@ function AttemptDetail({
     let active = true;
     (async () => {
       try {
-        const [qs, ls] = await Promise.all([listQuestions(attempt.level), listListening(attempt.level)]);
+        const [qs, ls, allListeningQuestions] = await Promise.all([
+          listQuestions(attempt.level),
+          listListening(attempt.level),
+          listAllListeningQuestions(),
+        ]);
         if (active) {
-          setQuestions(qs);
+          const testIds = attempt.test_question_ids ?? [];
+          const listeningIds = attempt.listening_question_ids ?? [];
+          setQuestions(
+            testIds.length > 0
+              ? testIds
+                  .map((id) => qs.find((question) => question.id === id))
+                  .filter((question): question is QuestionAdmin => Boolean(question))
+              : qs,
+          );
+          setListeningQuestions(
+            listeningIds.length > 0
+              ? listeningIds
+                  .map((id) => allListeningQuestions.find((question) => question.id === id))
+                  .filter((question): question is ListeningQuestionAdmin => Boolean(question))
+              : [],
+          );
           setListening(ls);
         }
         if (attempt.speaking_path) {
@@ -315,18 +346,45 @@ function AttemptDetail({
     setSaving(true);
     setError(null);
     try {
-      const payload = {
+      const isV2 = attempt.scoring_version >= 2;
+      const part1 = scores.part1 ? Number(scores.part1) : null;
+      const part2 = scores.part2 ? Number(scores.part2) : null;
+      const speaking = scores.speaking ? Number(scores.speaking) : null;
+      const legacyListening = scores.legacyListening ? Number(scores.legacyListening) : null;
+      const legacyWriting = scores.legacyWriting ? Number(scores.legacyWriting) : null;
+      const legacySpeaking = scores.legacySpeaking ? Number(scores.legacySpeaking) : null;
+      const note = scores.note.trim() || null;
+
+      await gradeAttempt({
         id: attempt.id,
-        listening_score: scores.listening ? Number(scores.listening) : null,
-        writing_score: scores.writing ? Number(scores.writing) : null,
-        speaking_score: scores.speaking ? Number(scores.speaking) : null,
-        admin_note: scores.note.trim() || null,
-        status: (scores.listening || scores.writing || scores.speaking
-          ? "graded"
-          : "submitted") as "graded" | "submitted",
-      };
-      await gradeAttempt(payload);
-      onSaved({ ...attempt, ...payload });
+        scoring_version: attempt.scoring_version,
+        writing_part1_score: isV2 ? part1 : null,
+        writing_part2_score: isV2 ? part2 : null,
+        speaking_score: isV2 ? speaking : legacySpeaking,
+        admin_note: note,
+        listening_score: isV2 ? attempt.listening_score : legacyListening,
+        writing_score: isV2 ? null : legacyWriting,
+      });
+
+      const writingScore = isV2
+        ? part1 === null && part2 === null
+          ? null
+          : (part1 ?? 0) + (part2 ?? 0)
+        : legacyWriting;
+      const graded = isV2
+        ? part1 !== null && part2 !== null && speaking !== null
+        : legacyWriting !== null && legacySpeaking !== null;
+
+      onSaved({
+        ...attempt,
+        writing_part1_score: isV2 ? part1 : attempt.writing_part1_score,
+        writing_part2_score: isV2 ? part2 : attempt.writing_part2_score,
+        writing_score: writingScore,
+        speaking_score: isV2 ? speaking : legacySpeaking,
+        listening_score: isV2 ? attempt.listening_score : legacyListening,
+        admin_note: note,
+        status: graded ? "graded" : "submitted",
+      });
 
       const notification = await notifyAttemptResult(attempt.id);
       if (notification.sent) {
@@ -369,7 +427,9 @@ function AttemptDetail({
       footer={
         <>
           <span className="mr-auto text-[11.5px] text-faint">
-            Puanlar 0–100 arasındadır. Kaydettiğinde durum otomatik güncellenir.
+            {attempt.scoring_version >= 2
+              ? "Yazma 0–10 + 0–10, konuşma 0–20. Test ve dinleme sunucuda otomatik puanlanır."
+              : "Eski kayıt: puanlar 0–100 arasındadır."}
           </span>
           <Button variant="ghost" onClick={onClose}>
             Kapat
@@ -385,29 +445,67 @@ function AttemptDetail({
         {emailNotice && <Notice tone={emailWarning ? "warning" : "success"}>{emailNotice}</Notice>}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ScoreTile label="Test" value={percent === null ? "—" : `%${percent}`} detail={`${attempt.mc_correct ?? 0} / ${attempt.mc_total ?? 0} doğru`} />
+          <ScoreTile
+            label="Test"
+            value={
+              attempt.mc_score !== null
+                ? `${Math.round(Number(attempt.mc_score))} / 50`
+                : percent === null
+                  ? "—"
+                  : `%${percent}`
+            }
+            detail={`${attempt.mc_correct ?? 0} / ${attempt.mc_total ?? 0} doğru`}
+          />
           <ScoreTile
             label="Dinleme"
-            value={attempt.listening_score !== null ? String(attempt.listening_score) : "—"}
-            detail={attempt.listening_score !== null ? "puanlandı" : "bekliyor"}
+            value={
+              attempt.listening_score !== null
+                ? `${Math.round(Number(attempt.listening_score))} / ${attempt.scoring_version >= 2 ? 10 : 100}`
+                : "—"
+            }
+            detail={
+              attempt.listening_score !== null
+                ? attempt.listening_total
+                  ? `${attempt.listening_correct ?? 0} / ${attempt.listening_total} doğru`
+                  : "puanlandı"
+                : "bekliyor"
+            }
           />
           <ScoreTile
             label="Yazma"
-            value={attempt.writing_score !== null ? String(attempt.writing_score) : "—"}
-            detail={attempt.writing_score !== null ? "puanlandı" : "bekliyor"}
+            value={
+              attempt.writing_score !== null
+                ? `${Math.round(Number(attempt.writing_score))} / ${attempt.scoring_version >= 2 ? 20 : 100}`
+                : "—"
+            }
+            detail={
+              attempt.scoring_version >= 2
+                ? `Bölüm 1: ${attempt.writing_part1_score ?? "—"}/10 · Bölüm 2: ${attempt.writing_part2_score ?? "—"}/10`
+                : attempt.writing_score !== null
+                  ? "puanlandı"
+                  : "bekliyor"
+            }
           />
           <ScoreTile
             label="Konuşma"
-            value={attempt.speaking_score !== null ? String(attempt.speaking_score) : "—"}
+            value={
+              attempt.speaking_score !== null
+                ? `${Math.round(Number(attempt.speaking_score))} / ${attempt.scoring_version >= 2 ? 20 : 100}`
+                : "—"
+            }
             detail={attempt.speaking_score !== null ? "puanlandı" : "bekliyor"}
           />
         </div>
 
         <p className="text-right text-[11.5px] text-muted">
-          Ağırlıklı toplam:{" "}
+          Toplam:{" "}
           <span className="font-semibold text-ink tabular-nums">{attemptTotal(attempt) ?? "—"}</span>{" "}
           / 100{" "}
-          <span className="text-faint">(%40 test · %20 dinleme · %20 yazma · %20 konuşma)</span>
+          <span className="text-faint">
+            {attempt.scoring_version >= 2
+              ? "(50 test · 10 dinleme · 20 yazma · 20 konuşma)"
+              : "(eski puanlama: %40 test · %20 dinleme · %20 yazma · %20 konuşma)"}
+          </span>
         </p>
 
         <Card title="Test cevapları" action={
@@ -466,40 +564,107 @@ function AttemptDetail({
           )}
         </Card>
 
-        <Card title="Dinleme transkriptleri">
-          {listening.length === 0 ? (
+        <Card title="Dinleme cevapları">
+          {attempt.scoring_version >= 2 ? (
+            listeningQuestions.length === 0 ? (
+              <p className="text-[12px] text-faint">Bu sınavda dinleme sorusu bulunmuyor.</p>
+            ) : (
+              <ol className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                {listeningQuestions.map((question, index) => {
+                  const answer = attempt.listening_answers?.[question.id];
+                  const correct = answer === question.correct_index;
+                  return (
+                    <li key={question.id} className="rounded-lg border border-line px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[11px] font-semibold text-faint tabular-nums">
+                          {index + 1}.
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12.5px] leading-snug">{question.prompt}</p>
+                          <p className="mt-1 text-[11.5px]">
+                            <span className={correct ? "text-success" : "text-danger"}>
+                              {answer === undefined ? "Boş" : question.options[answer]}
+                            </span>
+                            {!correct && (
+                              <span className="text-faint">
+                                {" "}· doğru: {question.options[question.correct_index]}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                            correct ? "bg-[#eef8f1] text-success" : "bg-[#fdf0f0] text-danger",
+                          )}
+                        >
+                          {correct ? "D" : "Y"}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            )
+          ) : listening.length === 0 ? (
             <p className="text-[12px] text-faint">Bu seviyede dinleme kaydı yok.</p>
           ) : (
             <div className="space-y-3">
-              {listening.map((item) => (
-                <div key={item.id}>
-                  <p className="text-[11.5px] font-medium text-muted">{item.title}</p>
-                  <p className="mt-1 rounded-lg bg-[#fcfcfe] px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-wrap ring-1 ring-line">
-                    {attempt.listening_answers?.[item.id]?.trim() || (
-                      <span className="text-faint">Boş bırakıldı</span>
+              {listening.map((item) => {
+                const legacyAnswers = attempt.listening_answers as unknown as Record<string, string>;
+                return (
+                  <div key={item.id}>
+                    <p className="text-[11.5px] font-medium text-muted">{item.title}</p>
+                    <p className="mt-1 rounded-lg bg-[#fcfcfe] px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-wrap ring-1 ring-line">
+                      {legacyAnswers?.[item.id]?.trim() || (
+                        <span className="text-faint">Boş bırakıldı</span>
+                      )}
+                    </p>
+                    {item.transcript && (
+                      <details className="mt-1 text-[11.5px] text-muted">
+                        <summary className="cursor-pointer text-faint transition hover:text-ink">
+                          Referans transkript
+                        </summary>
+                        <p className="mt-1 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
+                      </details>
                     )}
-                  </p>
-                  {item.transcript && (
-                    <details className="mt-1 text-[11.5px] text-muted">
-                      <summary className="cursor-pointer text-faint transition hover:text-ink">
-                        Referans transkript
-                      </summary>
-                      <p className="mt-1 leading-relaxed whitespace-pre-wrap">{item.transcript}</p>
-                    </details>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
 
         <Card title="Yazma cevabı">
-          <p className="max-h-60 overflow-y-auto rounded-lg bg-[#fcfcfe] px-3 py-2.5 text-[12.5px] leading-relaxed whitespace-pre-wrap ring-1 ring-line">
-            {attempt.writing_text?.trim() || <span className="text-faint">Boş bırakıldı</span>}
-          </p>
-          <p className="mt-1.5 text-[11px] text-faint">
-            {attempt.writing_text ? `${attempt.writing_text.trim().split(/\s+/).length} kelime` : "0 kelime"}
-          </p>
+          {attempt.scoring_version >= 2 ? (
+            <div className="space-y-3">
+              {([
+                { label: "Bölüm 1", text: attempt.writing_text },
+                { label: "Bölüm 2", text: attempt.writing_text_2 },
+              ] as const).map((part) => (
+                <div key={part.label}>
+                  <p className="text-[11.5px] font-medium text-muted">{part.label}</p>
+                  <p className="mt-1 max-h-52 overflow-y-auto rounded-lg bg-[#fcfcfe] px-3 py-2.5 text-[12.5px] leading-relaxed whitespace-pre-wrap ring-1 ring-line">
+                    {part.text?.trim() || <span className="text-faint">Boş bırakıldı</span>}
+                  </p>
+                  <p className="mt-1 text-[11px] text-faint">
+                    {part.text ? `${part.text.trim().split(/\s+/).length} kelime` : "0 kelime"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <p className="max-h-60 overflow-y-auto rounded-lg bg-[#fcfcfe] px-3 py-2.5 text-[12.5px] leading-relaxed whitespace-pre-wrap ring-1 ring-line">
+                {attempt.writing_text?.trim() || <span className="text-faint">Boş bırakıldı</span>}
+              </p>
+              <p className="mt-1.5 text-[11px] text-faint">
+                {attempt.writing_text
+                  ? `${attempt.writing_text.trim().split(/\s+/).length} kelime`
+                  : "0 kelime"}
+              </p>
+            </>
+          )}
         </Card>
 
         <Card title="Konuşma kaydı">
@@ -531,33 +696,75 @@ function AttemptDetail({
         </Card>
 
         <Card title="Değerlendirme">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {(
-              [
-                { key: "listening", label: "Dinleme puanı" },
-                { key: "writing", label: "Yazma puanı" },
-                { key: "speaking", label: "Konuşma puanı" },
-              ] as const
-            ).map(({ key, label }) => (
-              <Field key={key} label={label} hint="0–100" htmlFor={`score-${key}`}>
-                <input
-                  id={`score-${key}`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  className="field"
-                  placeholder="—"
-                  value={scores[key]}
-                  onChange={(event) =>
-                    setScores((prev) => ({
-                      ...prev,
-                      [key]: event.target.value === "" ? "" : String(Math.min(100, Math.max(0, Number(event.target.value)))),
-                    }))
-                  }
-                />
-              </Field>
-            ))}
-          </div>
+          {attempt.scoring_version >= 2 ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    { key: "part1", label: "Yazma · Bölüm 1", max: 10 },
+                    { key: "part2", label: "Yazma · Bölüm 2", max: 10 },
+                    { key: "speaking", label: "Konuşma", max: 20 },
+                  ] as const
+                ).map(({ key, label, max }) => (
+                  <Field key={key} label={label} hint={`0–${max}`} htmlFor={`score-${key}`}>
+                    <input
+                      id={`score-${key}`}
+                      type="number"
+                      min={0}
+                      max={max}
+                      className="field"
+                      placeholder="—"
+                      value={scores[key]}
+                      onChange={(event) =>
+                        setScores((prev) => ({
+                          ...prev,
+                          [key]:
+                            event.target.value === ""
+                              ? ""
+                              : String(Math.min(max, Math.max(0, Number(event.target.value)))),
+                        }))
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+              <p className="mt-2 text-[11.5px] text-faint">
+                Dinleme puanı otomatik: {attempt.listening_correct ?? 0} doğru /{" "}
+                {attempt.listening_total ?? 0} soru = {Math.round(Number(attempt.listening_score ?? 0))}/10
+              </p>
+            </>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  { key: "legacyListening", label: "Dinleme puanı" },
+                  { key: "legacyWriting", label: "Yazma puanı" },
+                  { key: "legacySpeaking", label: "Konuşma puanı" },
+                ] as const
+              ).map(({ key, label }) => (
+                <Field key={key} label={label} hint="0–100" htmlFor={`score-${key}`}>
+                  <input
+                    id={`score-${key}`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="field"
+                    placeholder="—"
+                    value={scores[key]}
+                    onChange={(event) =>
+                      setScores((prev) => ({
+                        ...prev,
+                        [key]:
+                          event.target.value === ""
+                            ? ""
+                            : String(Math.min(100, Math.max(0, Number(event.target.value)))),
+                      }))
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+          )}
           <div className="mt-3">
             <Field
               label="Değerlendirici notu"

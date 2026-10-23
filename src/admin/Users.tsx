@@ -162,6 +162,9 @@ function dateText(value: string | null, fallback = "—"): string {
 }
 
 function weightedTotal(attempt: ManagedAttempt): number | null {
+  if (attempt.scoring_version >= 2) {
+    return attempt.total_score === null ? null : Math.round(Number(attempt.total_score));
+  }
   if (
     !attempt.mc_total ||
     attempt.mc_correct === null ||

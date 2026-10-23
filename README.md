@@ -25,7 +25,7 @@ The candidate experience is in Spanish. The administration console is in Turkish
 ### At a glance
 
 - Six CEFR levels: **A1, A2, B1, B2, C1 and C2**.
-- Four independently scored skills: **vocabulary and grammar, listening, writing and speaking**.
+- Four independently scored skills: **vocabulary and grammar, listening, writing and speaking**, worth **50 + 10 + 20 + 20 = 100** points.
 - Assignment-based access with per-exam duration, due date and result visibility.
 - Server-side submission, duplicate-submission protection and automatic scoring.
 - Resumable exams through a server-side draft.
@@ -70,7 +70,7 @@ All screenshots below are from the live GitHub Pages deployment.
 - The server validates the assignment ID, candidate email, level, due date, answer shapes and file paths before accepting a submission.
 - One assignment can produce only one attempt (`attempts.assignment_id` is unique).
 - A two-minute rate limit prevents accidental duplicate submissions from the same email.
-- Test scoring runs in Postgres. Manual listening, writing and speaking scores are entered by an administrator and the weighted total is calculated server-side.
+- Test and listening scoring runs in Postgres. Writing and speaking points are entered by an administrator and the total is recalculated server-side.
 - Result fields are hidden by server functions until the assignment's results are published.
 
 ### Administration
@@ -82,11 +82,11 @@ The admin console covers the complete exam lifecycle:
 | **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
 | **Users** | Registered candidate accounts with lifecycle detail, date-range and activity-type filters, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
 | **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
-| **Exam results** | Review answers, listening transcripts, writing samples and speaking recordings; assign section scores; publish results; trigger result emails |
+| **Exam results** | Review test answers, listening answers, both writing parts and the speaking recording; the listening score is calculated from the keyed answers, writing (0–10 + 0–10) and speaking (0–20) are scored by the administrator; publish results and trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
 | **Answer key** | One-page answer key per level with the correct option, answer text and grading note; printable and downloadable as CSV |
-| **Listening** | Upload audio (up to 50 MB), title, play limit, ordering and grading transcript |
-| **Writing** | One prompt per level with a minimum word count |
+| **Listening** | Upload audio (up to 50 MB), title, play limit and ordering, then key the multiple-choice questions for each recording |
+| **Writing** | Two prompts per level (part 1 and part 2), each with a minimum word count |
 | **Speaking** | One prompt per level with preparation and speaking times |
 
 Admin routes require a Supabase session whose profile has `role = 'admin'`. All data access is additionally protected by row-level security.
@@ -137,20 +137,22 @@ JSON format:
 1. An administrator creates listening, writing and speaking content, then assigns an exam to a candidate email.
 2. The candidate registers or signs in, opens the assigned exam and receives a server-backed draft.
 3. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
-4. Final submission validates the assignment and writes a locked attempt. Multiple-choice answers are scored immediately; the other three sections wait for manual grading.
+4. Final submission validates the assignment and writes a locked attempt. Test and listening answers are scored immediately (1 point per question); writing and speaking wait for manual grading.
 5. The administrator reviews the attempt, enters section scores and publishes the result when ready.
 6. The candidate can look up the result and, if eligible, generate a certificate with a public verification code.
 
 ## Exam structure and scoring
 
-| Section | Candidate task | Weight |
+| Section | Candidate task | Points |
 | --- | --- | --- |
-| **Vocabulario y Gramática** | Multiple-choice questions for the assigned level | 40% |
-| **Comprensión Auditiva** | Listen up to the allowed number of plays and transcribe what was heard | 20% |
-| **Expresión Escrita** | Write a composition on the assigned prompt | 20% |
-| **Expresión oral** | Record an answer or upload an audio file | 20% |
+| **Vocabulario y Gramática** | 50 multiple-choice questions drawn at random from the level pool | 50 (1 per question) |
+| **Comprensión Auditiva** | Listen up to the allowed number of plays and answer keyed multiple-choice questions | 10 (1 per question) |
+| **Expresión Escrita** | Write two compositions, part 1 and part 2 | 20 (10 per part) |
+| **Expresión oral** | Record an answer or upload an audio file | 20 |
 
-The total is calculated on a 100-point scale and rounded. The test portion is scored automatically; the other three sections are scored by an administrator from 0 to 100.
+The total is the sum of the four sections out of 100. Test and listening answers are scored by the database the moment the attempt is submitted; writing and speaking are entered by an administrator. Listening answers are keyed by the administrator on the listening page before the exam is taken, and the correct option is stored in the private table, so it never reaches the candidate.
+
+The random question set is fixed for each draft: the 50 question IDs and the listening item are chosen once when the exam starts and stored on the draft, so a resume or refresh shows the same questions. Attempts created before this model keep their original 40/20/20/20 weighting and are still displayed correctly (`scoring_version`).
 
 ### Timing
 

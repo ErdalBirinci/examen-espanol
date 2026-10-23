@@ -3,8 +3,19 @@ import { Pencil, PenLine, Plus, Trash2 } from "lucide-react";
 import { deleteWriting, listWriting, saveWriting } from "../lib/api";
 import type { Level, WritingPrompt } from "../lib/types";
 import { errorMessage } from "../lib/utils";
-import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
+import { Button, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
+
+interface Slot {
+  part: 1 | 2;
+  title: string;
+  hint: string;
+}
+
+const SLOTS: Slot[] = [
+  { part: 1, title: "Bölüm 1", hint: "Kısa ve yönlendirilmiş görev · 10 puan" },
+  { part: 2, title: "Bölüm 2", hint: "Daha uzun, görüş bildiren görev · 10 puan" },
+];
 
 export default function Writing() {
   const [level, setLevel] = useState<Level>("A1");
@@ -13,9 +24,9 @@ export default function Writing() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WritingPrompt | null>(null);
+  const [part, setPart] = useState<1 | 2>(1);
   const [prompt, setPrompt] = useState("");
   const [minWords, setMinWords] = useState(80);
-  const [position, setPosition] = useState(1);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<WritingPrompt | null>(null);
@@ -37,20 +48,16 @@ export default function Writing() {
     void load(level);
   }, [level, load]);
 
-  function openCreate() {
-    setEditing(null);
-    setPrompt("");
-    setMinWords(80);
-    setPosition(items.length + 1);
-    setFormError(null);
-    setOpen(true);
+  function findPart(target: 1 | 2): WritingPrompt | null {
+    return items.find((item) => item.part === target) ?? null;
   }
 
-  function openEdit(item: WritingPrompt) {
-    setEditing(item);
-    setPrompt(item.prompt);
-    setMinWords(item.min_words);
-    setPosition(item.position);
+  function openSlot(target: 1 | 2) {
+    const existing = findPart(target);
+    setEditing(existing);
+    setPart(target);
+    setPrompt(existing?.prompt ?? "");
+    setMinWords(existing?.min_words ?? (target === 1 ? 80 : 120));
     setFormError(null);
     setOpen(true);
   }
@@ -68,7 +75,8 @@ export default function Writing() {
         level,
         prompt,
         min_words: Math.max(20, minWords),
-        position: Number(position) || 0,
+        position: editing?.position ?? part,
+        part,
       });
       setOpen(false);
       await load(level);
@@ -97,15 +105,10 @@ export default function Writing() {
     <div>
       <PageHeader
         title="Yazma"
-        description="Her seviye için bir yazma konusu belirle. Aday, konuya yorum niteliğinde bir kompozisyon yazar."
-        action={
-          <Button onClick={openCreate} icon={<Plus className="size-4" />}>
-            Konu ekle
-          </Button>
-        }
+        description="Her seviye için iki ayrı yazma görevi tanımla. Aday her iki metni de yazar; her bölüm 10 puan, toplam 20 puandır."
       />
 
-      <LevelTabs value={level} onChange={setLevel} suffix={(code) => (code === level ? items.length : undefined)} />
+      <LevelTabs value={level} onChange={setLevel} />
 
       {error && (
         <div className="mb-4">
@@ -117,56 +120,76 @@ export default function Writing() {
         <div className="flex justify-center py-20 text-muted">
           <Spinner className="size-5" />
         </div>
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={<PenLine className="size-5" />}
-          title={`${level} için yazma konusu yok`}
-          description="Konu eklediğinde adaylar yazma bölümünde bu metni görecek. İlk konu kullanılır."
-          action={<Button onClick={openCreate}>Konu ekle</Button>}
-        />
       ) : (
-        <div className="space-y-2.5">
-          {items.map((item, index) => (
-            <Panel key={item.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 gap-3">
-                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-[#f3f3f6] text-[11px] font-semibold text-muted tabular-nums">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] leading-relaxed">{item.prompt}</p>
-                    <p className="mt-1 text-[11.5px] text-faint">
-                      Minimum {item.min_words} kelime · sıra {item.position}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {SLOTS.map((slot) => {
+            const existing = findPart(slot.part);
+            return (
+              <Panel key={slot.part} className="flex flex-col p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10.5px] font-semibold tracking-[0.1em] text-faint uppercase">
+                      {slot.title}
                     </p>
+                    <p className="mt-1 text-[11.5px] text-muted">{slot.hint}</p>
                   </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
-                    aria-label="Düzenle"
+                  <span
+                    className={
+                      existing
+                        ? "rounded-full bg-[#eef8f1] px-2.5 py-1 text-[10.5px] font-semibold text-success"
+                        : "rounded-full bg-[#fdf8ec] px-2.5 py-1 text-[10.5px] font-semibold text-warning"
+                    }
                   >
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setToDelete(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
-                    aria-label="Sil"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                    {existing ? "Hazır" : "Eksik"}
+                  </span>
                 </div>
-              </div>
-            </Panel>
-          ))}
+
+                {existing ? (
+                  <>
+                    <p className="mt-4 flex-1 text-[13.5px] leading-relaxed">{existing.prompt}</p>
+                    <p className="mt-2 text-[11.5px] text-faint">
+                      Minimum {existing.min_words} kelime
+                    </p>
+                    <div className="mt-4 flex items-center gap-2 border-t border-line pt-3">
+                      <Button
+                        variant="secondary"
+                        onClick={() => openSlot(slot.part)}
+                        icon={<Pencil className="size-3.5" />}
+                      >
+                        Düzenle
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setToDelete(existing)}
+                        className="rounded-lg p-2 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
+                        aria-label="Sil"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 flex flex-1 flex-col items-start justify-center rounded-xl border border-dashed border-[#e2e2e9] bg-[#fcfcfe] p-5">
+                    <PenLine className="size-5 text-faint" />
+                    <p className="mt-2 text-[12.5px] text-muted">
+                      Bu bölüm için henüz konu tanımlanmadı.
+                    </p>
+                    <Button className="mt-3" onClick={() => openSlot(slot.part)} icon={<Plus className="size-3.5" />}>
+                      Konu ekle
+                    </Button>
+                  </div>
+                )}
+              </Panel>
+            );
+          })}
         </div>
       )}
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "Yazma konusunu düzenle" : "Yeni yazma konusu"}
-        description={`${level} seviyesi`}
+        title={editing ? `Yazma ${part}. bölümü düzenle` : `Yazma ${part}. bölümü ekle`}
+        description={`${level} seviyesi · 10 puan`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -181,45 +204,38 @@ export default function Writing() {
         <div className="space-y-4">
           {formError && <Notice tone="danger">{formError}</Notice>}
           <Field
-            label="Konu / yorum sorusu"
-            hint="Adayın yorum yapacağı tek soruyu yaz. İspanyolca olması önerilir."
+            label="Konu / görev"
+            hint="Adayın yanıtlayacağı görevi İspanyolca yaz. İki bölüm birbirinden bağımsız puanlanır."
           >
             <textarea
               className="field min-h-[130px] resize-y"
-              placeholder="¿Crees que las redes sociales acercan o alejan a las personas? Explica tu opinión con ejemplos."
+              placeholder={
+                part === 1
+                  ? "Escribe un correo a un amigo contándole tus planes para el fin de semana."
+                  : "¿Crees que las redes sociales acercan o alejan a las personas? Explica tu opinión con ejemplos."
+              }
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
           </Field>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Minimum kelime">
-              <input
-                type="number"
-                min={20}
-                max={600}
-                className="field"
-                value={minWords}
-                onChange={(event) => setMinWords(Number(event.target.value))}
-              />
-            </Field>
-            <Field label="Sıra">
-              <input
-                type="number"
-                min={0}
-                className="field"
-                value={position}
-                onChange={(event) => setPosition(Number(event.target.value))}
-              />
-            </Field>
-          </div>
+          <Field label="Minimum kelime" hint="20–600 kelime">
+            <input
+              type="number"
+              min={20}
+              max={600}
+              className="field"
+              value={minWords}
+              onChange={(event) => setMinWords(Number(event.target.value))}
+            />
+          </Field>
         </div>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(toDelete)}
         title="Yazma konusunu sil"
-        description={toDelete?.prompt ?? ""}
+        description={toDelete ? `${toDelete.part}. bölüm · ${toDelete.prompt.slice(0, 80)}` : ""}
         loading={deleting}
         onConfirm={() => void handleDelete()}
         onClose={() => setToDelete(null)}
