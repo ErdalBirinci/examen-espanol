@@ -70,6 +70,7 @@ export default function ExamPage() {
 
   const [mcAnswers, setMcAnswers] = useState<Record<string, number>>({});
   const [listeningAnswers, setListeningAnswers] = useState<Record<string, number>>({});
+  const [listeningPlays, setListeningPlays] = useState(0);
   const [writing, setWriting] = useState("");
   const [writing2, setWriting2] = useState("");
   const [recording, setRecording] = useState<RecordingPayload | null>(null);
@@ -489,6 +490,12 @@ export default function ExamPage() {
               answers={listeningAnswers}
               onChange={(questionId, optionIndex) =>
                 setListeningAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
+              }
+              plays={listeningPlays}
+              onPlay={() =>
+                setListeningPlays((value) =>
+                  Math.min(value + 1, bundle.listening?.item.max_plays ?? 1),
+                )
               }
               onNext={() => setStage("writing")}
               onBack={() => setStage("test")}

@@ -16,7 +16,9 @@ import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
 
 const MAX_BYTES = 50 * 1024 * 1024;
-const LETTERS = ["A", "B", "C", "D"];
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
+const MIN_OPTIONS = 2;
+const MAX_OPTIONS = 6;
 
 export default function Listening() {
   const [level, setLevel] = useState<Level>("A1");
@@ -167,10 +169,14 @@ export default function Listening() {
 
   function openNewQuestion(itemId: string) {
     const nextPosition = (counts[itemId] ?? 0) + 1;
+    // Every question of one recording shares the same answer columns, so the
+    // new row starts from the bank an existing row already uses.
+    const sibling = questions.find((question) => question.item_id === itemId);
+    const inherited = sibling?.options.filter((option) => option.trim()) ?? [];
     setQuestionItemId(itemId);
     setEditingQuestion(null);
     setQuestionPrompt("");
-    setQuestionOptions(["", "", "", ""]);
+    setQuestionOptions(inherited.length >= MIN_OPTIONS ? inherited : ["", "", "", ""]);
     setQuestionCorrect(0);
     setQuestionPosition(nextPosition);
     setQuestionError(null);
@@ -181,11 +187,18 @@ export default function Listening() {
     setQuestionItemId(question.item_id);
     setEditingQuestion(question);
     setQuestionPrompt(question.prompt);
-    setQuestionOptions([0, 1, 2, 3].map((index) => question.options[index] ?? ""));
-    setQuestionCorrect(question.correct_index);
+    const options = question.options.filter((option) => option.trim());
+    setQuestionOptions(options.length >= MIN_OPTIONS ? options : ["", "", "", ""]);
+    setQuestionCorrect(Math.min(question.correct_index, Math.max(options.length - 1, 0)));
     setQuestionPosition(question.position);
     setQuestionError(null);
     setQuestionOpen(true);
+  }
+
+  function removeOption(index: number) {
+    if (questionOptions.length <= MIN_OPTIONS) return;
+    setQuestionOptions((prev) => prev.filter((_, position) => position !== index));
+    setQuestionCorrect((prev) => (prev >= index ? Math.max(0, prev - 1) : prev));
   }
 
   async function submitQuestion(itemId: string) {
@@ -193,8 +206,17 @@ export default function Listening() {
       setQuestionError("Soru metni zorunlu.");
       return;
     }
-    if (questionOptions.some((option) => !option.trim())) {
-      setQuestionError("Dört seçeneğin hepsi doldurulmalı.");
+    const trimmedOptions = questionOptions.map((option) => option.trim());
+    if (trimmedOptions.length < MIN_OPTIONS) {
+      setQuestionError(`En az ${MIN_OPTIONS} seçenek gerekli.`);
+      return;
+    }
+    if (trimmedOptions.some((option) => !option)) {
+      setQuestionError("Boş seçenek bırakma; kullanmadığın satırı sil.");
+      return;
+    }
+    if (new Set(trimmedOptions).size !== trimmedOptions.length) {
+      setQuestionError("Seçenekler birbirinden farklı olmalı.");
       return;
     }
     setQuestionSaving(true);
@@ -204,7 +226,7 @@ export default function Listening() {
         id: editingQuestion?.id,
         item_id: itemId,
         prompt: questionPrompt,
-        options: questionOptions,
+        options: trimmedOptions,
         correct_index: questionCorrect,
         position: Number(questionPosition) || 0,
       });
@@ -237,7 +259,7 @@ export default function Listening() {
     <div>
       <PageHeader
         title="Dinleme"
-        description="Her seviye için ses kaydı yükle ve kaydın çoktan seçmeli sorularını tanımla. Sınavda her ses kaydı 10 soru ve 10 puanla değerlendirilir."
+        description="Ses kaydını yükle, ortak cevap sütunlarını ve her cümlenin doğru şıkkını belirle. Aday kaydı dinleyip cümleleri doğru seçenekle eşleştirir; her ses kaydı 10 soru ve 10 puanla değerlendirilir."
         action={
           <Button onClick={openCreate} icon={<Plus className="size-4" />}>
             Ses kaydı ekle
@@ -270,6 +292,13 @@ export default function Listening() {
             const itemQuestions = questions.filter((question) => question.item_id === item.id);
             const isExpanded = expanded === item.id;
             const questionCount = counts[item.id] ?? 0;
+            const bank = itemQuestions[0]?.options.filter((option) => option.trim()) ?? [];
+            const inconsistent =
+              itemQuestions.length > 1 &&
+              itemQuestions.some(
+                (question) =>
+                  JSON.stringify(question.options) !== JSON.stringify(itemQuestions[0].options),
+              );
             return (
               <Panel key={item.id} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -345,6 +374,29 @@ export default function Listening() {
                         Soru ekle
                       </Button>
                     </div>
+
+                    {itemQuestions.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-line bg-white px-3 py-2.5">
+                        <p className="text-[10.5px] font-semibold tracking-[0.08em] text-faint uppercase">
+                          Cevap sütunları
+                        </p>
+                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted">
+                          {bank.map((option, index) => (
+                            <span key={`${option}-${index}`} className="inline-flex items-center gap-1">
+                              <span className="font-semibold text-faint">{LETTERS[index]}</span>
+                              {option}
+                            </span>
+                          ))}
+                        </p>
+                        {inconsistent && (
+                          <p className="mt-1.5 text-[11px] leading-relaxed text-warning">
+                            Soruların seçenekleri birbirinden farklı. Aday ekranındaki sütunlar tüm
+                            soruların seçeneklerinden oluşur; aynı kaydın tüm sorularında aynı
+                            seçenekleri kullan.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {itemQuestions.length === 0 ? (
                       <p className="mt-3 text-[12px] text-faint">
@@ -485,7 +537,7 @@ export default function Listening() {
         open={questionOpen}
         onClose={() => setQuestionOpen(false)}
         title={editingQuestion ? "Dinleme sorusunu düzenle" : "Yeni dinleme sorusu"}
-        description="Dört seçenek ve tek doğru cevap. Her soru 1 puandır."
+        description="Cümle, ortak cevap sütunları ve tek doğru şık. Her soru 1 puandır."
         footer={
           <>
             <Button variant="ghost" onClick={() => setQuestionOpen(false)}>
@@ -515,7 +567,12 @@ export default function Listening() {
           </Field>
 
           <div className="space-y-2">
-            <p className="text-[12px] font-medium text-muted">Seçenekler</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-muted">Cevap sütunları</p>
+              <span className="text-[11px] text-faint tabular-nums">
+                {questionOptions.length} / {MAX_OPTIONS}
+              </span>
+            </div>
             {questionOptions.map((option, index) => (
               <div key={index} className="flex items-center gap-2">
                 <button
@@ -540,10 +597,30 @@ export default function Listening() {
                     )
                   }
                 />
+                <button
+                  type="button"
+                  onClick={() => removeOption(index)}
+                  disabled={questionOptions.length <= MIN_OPTIONS}
+                  aria-label="Seçeneği sil"
+                  className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-faint"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
             ))}
-            <p className="text-[11px] text-faint">
-              Doğru cevabı işaretlemek için soldaki harfe tıkla. Seçili:{" "}
+            {questionOptions.length < MAX_OPTIONS && (
+              <button
+                type="button"
+                onClick={() => setQuestionOptions((prev) => [...prev, ""])}
+                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11.5px] font-medium text-accent-ink transition hover:bg-[#f3f7ff]"
+              >
+                <Plus className="size-3.5" />
+                Seçenek ekle
+              </button>
+            )}
+            <p className="text-[11px] leading-relaxed text-faint">
+              Bu seçenekler aday ekranında sütun başlığı olur; aynı kaydın tüm sorularında aynı
+              bankayı kullan. Doğru cevabı işaretlemek için soldaki harfe tıkla. Seçili:{" "}
               <span className="font-semibold text-success">{LETTERS[questionCorrect]}</span>
             </p>
           </div>

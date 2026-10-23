@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Check, Headphones } from "lucide-react";
 import { SectionEmpty, StepFooter, StepHeader } from "./Shell";
 import AudioPlayer from "./AudioPlayer";
@@ -6,7 +5,16 @@ import { listeningAudioUrl } from "../lib/api";
 import type { ListeningExam } from "../lib/types";
 import { cn } from "../lib/utils";
 
-const LETTERS = ["A", "B", "C", "D", "E", "F"];
+/** Shared answer bank, in the order the administrator entered it. */
+function columnBank(listening: ListeningExam): string[] {
+  const bank: string[] = [];
+  for (const question of listening.questions) {
+    for (const option of question.options) {
+      if (option.trim() && !bank.includes(option)) bank.push(option);
+    }
+  }
+  return bank;
+}
 
 export default function ListeningStep({
   listening,
@@ -14,23 +22,24 @@ export default function ListeningStep({
   onChange,
   onNext,
   onBack,
+  plays,
+  onPlay,
 }: {
   listening: ListeningExam | null;
   answers: Record<string, number>;
   onChange: (questionId: string, optionIndex: number) => void;
   onNext: () => void;
   onBack: () => void;
+  plays: number;
+  onPlay: () => void;
 }) {
-  const [current, setCurrent] = useState(0);
-  const [plays, setPlays] = useState(0);
-
   if (!listening || listening.questions.length === 0) {
     return (
       <div>
         <StepHeader
           index={2}
           title="Comprensión Auditiva"
-          description="Escucha la grabación y responde a las preguntas."
+          description="Escucha la grabación y elige la opción correcta para cada frase."
         />
         <SectionEmpty
           message={
@@ -45,19 +54,15 @@ export default function ListeningStep({
   }
 
   const { item, questions } = listening;
-  const question = questions[current];
-  const selected = answers[question.id];
-  const isLast = current === questions.length - 1;
-  const answeredCount = questions.filter(
-    (entry) => answers[entry.id] !== undefined,
-  ).length;
+  const bank = columnBank(listening);
+  const answeredCount = questions.filter((entry) => answers[entry.id] !== undefined).length;
 
   return (
     <div>
       <StepHeader
         index={2}
         title="Comprensión Auditiva"
-        description="Escucha la grabación y elige la opción correcta en cada pregunta. Puedes volver atrás y cambiar tus respuestas."
+        description="Escucha la grabación y elige la opción correcta en cada frase. Puedes cambiar tus respuestas cuando quieras."
         aside={
           <div className="glass-inset flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[12px] text-muted">
             <Headphones className="size-4 text-accent" />
@@ -69,25 +74,111 @@ export default function ListeningStep({
       />
 
       <div className="anim-rise card overflow-hidden" key={item.id}>
-        <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,248,255,0.8),rgba(255,255,255,0.35))] px-6 py-5 sm:px-8">
+        <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,248,255,0.8),rgba(255,255,255,0.35))] px-5 py-5 sm:px-8">
           <p className="text-[11px] font-semibold tracking-[0.1em] text-faint uppercase">
-            Pista de audio · una escucha recomendada
+            Escucha y elige la opción correcta
           </p>
-          <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.02em]">{item.title}</h2>
+          <h2 className="mt-1.5 text-[19px] font-semibold tracking-[-0.02em] sm:text-[20px]">
+            {item.title}
+          </h2>
           <div className="mt-4">
             <AudioPlayer
               src={listeningAudioUrl(item.audio_path)}
               plays={plays}
               maxPlays={item.max_plays}
-              onPlay={() => setPlays((value) => Math.min(value + 1, item.max_plays))}
+              onPlay={onPlay}
             />
           </div>
         </div>
 
-        <div className="border-b border-white/70 bg-white/25 px-6 py-3 sm:px-8">
+        <div className="overflow-x-auto px-2 py-4 sm:px-6 sm:py-6">
+          <table className="w-full min-w-[620px] border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th scope="col" className="w-[42%] px-2 pb-3 text-left align-bottom">
+                  <span className="text-[10.5px] font-semibold tracking-[0.1em] text-faint uppercase">
+                    Frase
+                  </span>
+                </th>
+                {bank.map((option) => (
+                  <th
+                    key={option}
+                    scope="col"
+                    className="max-w-[120px] px-1.5 pb-3 text-center align-bottom text-[11.5px] leading-tight font-medium text-muted"
+                  >
+                    {option}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {questions.map((question, rowIndex) => {
+                const selected = answers[question.id];
+                const answered = selected !== undefined;
+                return (
+                  <tr key={question.id} className={rowIndex % 2 === 1 ? "bg-white/25" : undefined}>
+                    <th
+                      scope="row"
+                      className={cn(
+                        "sticky left-0 z-10 px-2 py-3 text-left align-middle text-[13px] leading-snug font-normal sm:static sm:bg-transparent",
+                        rowIndex % 2 === 1 ? "bg-[#fbfcff]" : "bg-white",
+                      )}
+                    >
+                      <span className="mr-1.5 text-[11px] text-faint tabular-nums">
+                        {String(rowIndex + 1).padStart(2, "0")}
+                      </span>
+                      <span className={answered ? "text-ink" : "text-muted"}>{question.prompt}</span>
+                    </th>
+
+                    {bank.map((option) => {
+                      const optionIndex = question.options.indexOf(option);
+                      const available = optionIndex >= 0;
+                      const active = available && selected === optionIndex;
+                      return (
+                        <td key={option} className="px-1.5 py-3 text-center align-middle">
+                          {available ? (
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              aria-label={`${question.prompt} — ${option}`}
+                              onClick={() => onChange(question.id, optionIndex)}
+                              className="focus-ring group mx-auto flex size-8 items-center justify-center rounded-full"
+                            >
+                              <span
+                                className={cn(
+                                  "flex size-[22px] items-center justify-center rounded-full border-2 transition-all duration-150",
+                                  active
+                                    ? "border-accent bg-accent text-white shadow-[0_6px_14px_-8px_rgba(47,107,255,0.9)]"
+                                    : "border-[#c9d3e2] bg-white/70 group-hover:border-accent/60 group-hover:bg-white",
+                                )}
+                              >
+                                {active && <Check className="size-3" strokeWidth={3.5} />}
+                              </span>
+                            </button>
+                          ) : (
+                            <span aria-hidden className="text-[11px] text-[#d7dde8]">
+                              —
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="px-5 pb-1 text-[11px] text-faint sm:hidden">
+          Desliza la tabla hacia los lados para ver todas las opciones.
+        </p>
+
+        <div className="border-t border-white/70 bg-white/30 px-6 py-4 sm:px-8">
           <div className="flex items-center justify-between text-[11.5px] font-medium text-muted">
             <span className="tabular-nums">
-              Pregunta {String(current + 1).padStart(2, "0")} / {questions.length}
+              {answeredCount} / {questions.length} respondidas
             </span>
             <span className="tabular-nums">
               {Math.round((answeredCount / questions.length) * 100)}% completado
@@ -100,95 +191,13 @@ export default function ListeningStep({
             />
           </div>
         </div>
-
-        <div className="px-6 py-7 sm:px-8 sm:py-8">
-          <p className="text-[18px] leading-relaxed font-medium tracking-[-0.015em] sm:text-[21px]">
-            {question.prompt}
-          </p>
-
-          <div className="mt-5 space-y-2.5" role="radiogroup" aria-label="Opciones">
-            {question.options.map((option, optionIndex) => {
-              const active = selected === optionIndex;
-              return (
-                <button
-                  key={optionIndex}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => onChange(question.id, optionIndex)}
-                  className={cn(
-                    "focus-ring group flex w-full items-center gap-3.5 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150",
-                    active
-                      ? "border-[#a9c8f2] bg-[linear-gradient(140deg,rgba(238,245,255,0.96),rgba(255,255,255,0.75))] shadow-[inset_0_0_0_1px_rgba(47,107,255,0.18),0_12px_28px_-24px_rgba(47,107,255,0.7)]"
-                      : "border-white/80 bg-white/45 hover:border-white hover:bg-white/75",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold transition",
-                      active
-                        ? "bg-accent text-white shadow-[0_5px_12px_-6px_rgba(47,107,255,0.8)]"
-                        : "bg-white/70 text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] group-hover:bg-white",
-                    )}
-                  >
-                    {active ? <Check className="size-3.5" strokeWidth={3} /> : LETTERS[optionIndex]}
-                  </span>
-                  <span className="text-[14px] leading-snug">{option}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-white/70 bg-white/30 px-6 py-3.5 sm:px-8">
-          <button
-            type="button"
-            onClick={() => setCurrent((index) => Math.max(0, index - 1))}
-            disabled={current === 0}
-            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted transition hover:bg-white/70 hover:text-ink disabled:opacity-40"
-          >
-            ← Pregunta anterior
-          </button>
-
-          <div className="hidden max-w-[50%] flex-wrap justify-center gap-1.5 sm:flex">
-            {questions.map((entry, index) => {
-              const answered = answers[entry.id] !== undefined;
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => setCurrent(index)}
-                  aria-label={`Ir a la pregunta ${index + 1}`}
-                  className={cn(
-                    "size-5 rounded-[6px] text-[9.5px] font-semibold transition",
-                    index === current
-                      ? "bg-[linear-gradient(135deg,#16243d,#2b4a7d)] text-white shadow-[0_4px_10px_-6px_rgba(18,35,62,0.8)]"
-                      : answered
-                        ? "bg-accent/15 text-accent-ink"
-                        : "bg-white/55 text-faint hover:bg-white/80",
-                  )}
-                >
-                  {index + 1}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => (isLast ? onNext() : setCurrent((index) => index + 1))}
-            className="focus-ring rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink transition hover:bg-white/70"
-          >
-            {isLast ? "Ir a expresión escrita →" : "Siguiente pregunta →"}
-          </button>
-        </div>
       </div>
 
       <StepFooter
         onBack={onBack}
         onNext={onNext}
         nextLabel="Ir a expresión escrita"
-        hint={`${answeredCount} de ${questions.length} preguntas respondidas`}
+        hint={`${answeredCount} de ${questions.length} frases respondidas`}
       />
     </div>
   );
