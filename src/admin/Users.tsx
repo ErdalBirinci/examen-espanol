@@ -54,7 +54,7 @@ const ACTIVITY_OPTIONS: Array<{ value: ActivityFilter; label: string }> = [
   { value: "assignment", label: "Sınav ataması" },
   { value: "draft", label: "Taslak kaydı" },
   { value: "attempt", label: "Sınav gönderimi" },
-  { value: "certificate", label: "Sertifika" },
+  { value: "certificate", label: "Katılım belgesi" },
 ];
 
 const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
@@ -791,7 +791,7 @@ export default function Users() {
                   <DataPill label="Sınav" value={detail.attempts.length} />
                   <DataPill label="Taslak" value={detail.drafts.length} />
                   <DataPill
-                    label="Sertifika"
+                    label="Katılım belgesi"
                     value={detail.attempts.filter((attempt) => attempt.certificate_code).length}
                   />
                 </div>
@@ -907,7 +907,7 @@ export default function Users() {
                                 </p>
                                 {attempt.certificate_code && (
                                   <p className="mt-1 text-[11px] text-success">
-                                    Sertifika: {attempt.certificate_code}
+                                    Katılım belgesi: {attempt.certificate_code}
                                   </p>
                                 )}
                               </div>
@@ -1097,7 +1097,7 @@ function LifecycleTimeline({ detail }: { detail: ManagedCandidateDetail }) {
       if (attempt.certificate_issued_at) {
         list.push({
           at: attempt.certificate_issued_at,
-          title: "Sertifika oluşturuldu",
+          title: "Katılım belgesi oluşturuldu",
           detail: `${attempt.level} · ${attempt.certificate_code ?? ""}`,
           tone: "success",
         });

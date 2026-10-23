@@ -3,7 +3,6 @@ import { Check, Copy, Download, ExternalLink, FileText, Share2 } from "lucide-re
 import { Button, Modal, Spinner } from "../components/ui";
 import {
   certificateFileName,
-  certificateGrade,
   certificateShareText,
   certificateVerificationUrl,
   formatCertificateDate,
@@ -51,7 +50,7 @@ export function CertificatePanel({
       } catch (error) {
         if (active) {
           setRenderError(
-            error instanceof Error ? error.message : "No se pudo preparar el certificado.",
+            error instanceof Error ? error.message : "No se pudo preparar la constancia.",
           );
         }
       }
@@ -100,7 +99,7 @@ export function CertificatePanel({
         type: "image/png",
       });
       const data: ShareData = {
-        title: `Certificado de español ${certificate.level}`,
+        title: `Constancia de participación · nivel ${certificate.level}`,
         text,
         url: verificationUrl,
       };
@@ -159,18 +158,17 @@ export function CertificatePanel({
   ];
 
   return (
-    <section className="anim-rise card mt-6 overflow-hidden" id="certificado">
+    <section className="anim-rise card mt-6 overflow-hidden" id="constancia">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line bg-[#fcfcfe] px-6 py-5 sm:px-8">
         <div>
           <p className="text-[11px] font-semibold tracking-[0.1em] text-faint uppercase">
-            {publicView ? "Certificado verificado" : "Certificado oficial"}
+            {publicView ? "Constancia verificada" : "Constancia de participación"}
           </p>
           <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em]">
             {publicView ? certificate.full_name : `Enhorabuena, ${certificate.full_name.split(" ")[0]}`}
           </h2>
           <p className="mt-1 max-w-xl text-[12.5px] leading-relaxed text-muted">
-            Nivel {certificate.level} · {certificate.total_score}/100 ·{" "}
-            {certificateGrade(certificate.total_score)}
+            Nivel {certificate.level} · Documento de participación · {formatCertificateDate(certificate.submitted_at)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -207,7 +205,7 @@ export function CertificatePanel({
           {preview ? (
             <img
               src={preview}
-              alt={`Certificado de nivel ${certificate.level} de ${certificate.full_name}`}
+              alt={`Constancia de participación de nivel ${certificate.level} de ${certificate.full_name}`}
               className="block w-full"
               width={WIDTH}
               height={HEIGHT}
@@ -249,8 +247,8 @@ export function CertificatePanel({
       <Modal
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        title="Compartir certificado"
-        description="Comparte el enlace verificado o la imagen del certificado."
+        title="Compartir constancia"
+        description="Comparte el enlace verificado o la imagen de la constancia."
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
@@ -301,7 +299,7 @@ function canvasBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error("No se pudo generar el archivo del certificado."));
+      else reject(new Error("No se pudo generar el archivo de la constancia."));
     }, type);
   });
 }
@@ -325,7 +323,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("El lienzo del certificado no está disponible.");
+  if (!ctx) throw new Error("El lienzo de la constancia no está disponible.");
 
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
   ctx.fillStyle = IVORY;
@@ -347,7 +345,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
 
   drawSpaced(
     ctx,
-    "CERTIFICADO",
+    "CONSTANCIA",
     390,
     17,
     "400 100px 'Instrument Serif', Georgia, serif",
@@ -355,7 +353,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
   );
   drawSpaced(
     ctx,
-    "DE COMPETENCIA LINGÜÍSTICA",
+    "DE PARTICIPACIÓN",
     452,
     9,
     "600 24px Inter, Arial, sans-serif",
@@ -365,7 +363,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
   ctx.textAlign = "center";
   ctx.fillStyle = MUTED;
   ctx.font = "italic 400 36px 'Instrument Serif', Georgia, serif";
-  ctx.fillText("Se certifica que", WIDTH / 2, 545);
+  ctx.fillText("Se hace constar que", WIDTH / 2, 545);
 
   const name = certificate.full_name.trim() || "Aday";
   const nameSize = fitFont(ctx, name, 1880, 112, 62, "400");
@@ -379,9 +377,9 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
 
   ctx.fillStyle = MUTED;
   ctx.font = "400 34px Inter, Arial, sans-serif";
-  ctx.fillText("ha superado con éxito el Examen de Español de nivel", WIDTH / 2, 782);
+  ctx.fillText("ha participado en el Examen de Español de nivel", WIDTH / 2, 782);
 
-  drawSpaced(ctx, "NIVEL ALCANZADO", 850, 6, "600 20px Inter, Arial, sans-serif", GOLD);
+  drawSpaced(ctx, "NIVEL DEL EXAMEN", 850, 6, "600 20px Inter, Arial, sans-serif", GOLD);
   drawSpaced(
     ctx,
     certificate.level,
@@ -394,9 +392,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
   ctx.fillStyle = MUTED;
   ctx.font = "400 30px Inter, Arial, sans-serif";
   ctx.fillText(
-    `Puntuación global ${certificate.total_score}/100  ·  ${certificateGrade(
-      certificate.total_score,
-    )}`,
+    "Documento de participación · No acredita nivel de competencia",
     WIDTH / 2,
     1024,
   );
@@ -410,12 +406,7 @@ function drawCertificate(canvas: HTMLCanvasElement, certificate: CertificateReco
     formatCertificateDate(certificate.submitted_at),
   );
   footerBlock(ctx, WIDTH / 2, "REFERENCIA", certificate.reference);
-  footerBlock(
-    ctx,
-    WIDTH - 300,
-    "RESULTADO",
-    `${certificateGrade(certificate.total_score)} · ${certificate.total_score}/100`,
-  );
+  footerBlock(ctx, WIDTH - 300, "CARÁCTER", "Participación");
 
   drawSeal(ctx, WIDTH / 2, 1450);
 
@@ -538,7 +529,7 @@ function drawSeal(ctx: CanvasRenderingContext2D, x: number, y: number) {
   drawSpacedAt(ctx, "DE ESPAÑOL", x, y + 43, 3, "600 12px Inter, Arial, sans-serif", GOLD);
   ctx.fillStyle = "#8a8f98";
   ctx.font = "500 9px Inter, Arial, sans-serif";
-  ctx.fillText("CERTIFICACIÓN OFICIAL", x, y + 63);
+  ctx.fillText("PARTICIPACIÓN", x, y + 63);
   ctx.restore();
 }
 

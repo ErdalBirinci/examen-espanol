@@ -1,22 +1,21 @@
 import type { AttemptResult, CertificateRecord } from "./types";
 
-/** A certificate is issued only for a fully graded exam with this score or more. */
-export const CERTIFICATE_MIN_SCORE = 60;
-
+/**
+ * The centre issues a participation document, not a competence certificate.
+ * It records that the candidate sat the exam, so it is available for every
+ * graded attempt whose result has been published — no score threshold.
+ */
 export function isCertificateEligible(result: AttemptResult): boolean {
-  return (
-    result.results_visible !== false &&
-    result.status === "graded" &&
-    result.total_score !== null &&
-    result.total_score >= CERTIFICATE_MIN_SCORE
-  );
+  return result.results_visible !== false && result.status === "graded";
 }
 
+/** Score bands used by the result report, not by the participation document. */
 export function certificateGrade(score: number): string {
   if (score >= 90) return "Sobresaliente";
   if (score >= 80) return "Notable";
   if (score >= 70) return "Bien";
-  return "Apto";
+  if (score >= 60) return "Apto";
+  return "No apto";
 }
 
 export function formatCertificateDate(value: string): string {
@@ -41,9 +40,7 @@ export function certificateVerificationUrl(code: string): string {
 }
 
 export function certificateShareText(certificate: CertificateRecord): string {
-  return `He obtenido el certificado de nivel ${certificate.level} del Examen de Español con ${certificate.total_score}/100 (${certificateGrade(
-    certificate.total_score,
-  )}). 🎓`;
+  return `He participado en el Examen de Español de nivel ${certificate.level} y ya tengo mi constancia de participación. 🎓`;
 }
 
 export function certificateFileName(certificate: CertificateRecord): string {
@@ -54,5 +51,5 @@ export function certificateFileName(certificate: CertificateRecord): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
-  return `certificado-${certificate.level.toLowerCase()}-${slug || "examen-espanol"}`;
+  return `constancia-participacion-${certificate.level.toLowerCase()}-${slug || "examen-espanol"}`;
 }

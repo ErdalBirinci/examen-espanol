@@ -46,22 +46,22 @@ export default function CertificatePage() {
             Verificación pública
           </span>
           <h1 className="mt-4 text-[clamp(2.2rem,5vw,3rem)] leading-[1.02] font-semibold tracking-[-0.045em]">
-            Certificado de{" "}
-            <span className="font-display font-normal italic text-gradient-blue">español.</span>
+            Constancia de{" "}
+            <span className="font-display font-normal italic text-gradient-blue">participación.</span>
           </h1>
         </div>
 
         {loading ? (
           <div className="flex flex-col items-center gap-3 py-24 text-muted">
             <Spinner className="size-6" />
-            <p className="text-[13px]">Verificando el certificado…</p>
+            <p className="text-[13px]">Verificando la constancia…</p>
           </div>
         ) : certificate ? (
           <div className="anim-rise">
             <div className="flex items-start gap-3 rounded-2xl border border-[#d6ecdf] bg-[#f2faf5]/85 px-4 py-3.5 text-success shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
               <BadgeCheck className="mt-0.5 size-5 shrink-0" />
               <div>
-                <p className="text-[13px] font-semibold">Certificado válido</p>
+                <p className="text-[13px] font-semibold">Constancia válida</p>
                 <p className="mt-0.5 text-[12px] leading-relaxed">
                   Emitido por Examen de Español y verificado con el código{" "}
                   <span className="font-mono font-semibold">
@@ -80,10 +80,10 @@ export default function CertificatePage() {
               <ShieldAlert className="size-7" strokeWidth={1.8} />
             </div>
             <h1 className="mt-5 text-[24px] font-semibold tracking-[-0.03em]">
-              Certificado no encontrado
+              Constancia no encontrada
             </h1>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-              El enlace no corresponde a un certificado válido, o el resultado todavía no está
+              El enlace no corresponde a una constancia válida, o el resultado todavía no está
               publicado. Revisa el código que aparece en el documento.
             </p>
             {error && (
@@ -97,7 +97,7 @@ export default function CertificatePage() {
           </div>
         )}
       </main>
-      <SiteFooter note="Certificado verificable" />
+      <SiteFooter note="Constancia verificable" />
     </div>
   );
 }

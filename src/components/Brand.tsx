@@ -39,7 +39,7 @@ export function Brand({
         </span>
         {!compact && (
           <span className="mt-1 text-[8.5px] font-semibold tracking-[0.19em] text-faint uppercase">
-            Certificación de lengua
+            Evaluación de lengua
           </span>
         )}
       </span>

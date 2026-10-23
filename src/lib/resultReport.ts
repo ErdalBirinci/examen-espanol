@@ -20,7 +20,8 @@ const FAINT = "#8a8f98";
 const LINE = "#e4e8f0";
 const TRACK = "#e8edf6";
 
-const CERTIFICATE_MIN_SCORE = 60;
+/** Pass mark shown on the score report; the participation document has no threshold. */
+const PASS_MARK = 60;
 
 function formatSubmitted(value: string): string {
   try {
@@ -37,7 +38,7 @@ function formatSubmitted(value: string): string {
 }
 
 function scoreLabel(score: number): string {
-  return score >= CERTIFICATE_MIN_SCORE ? certificateGrade(score) : "No superado";
+  return certificateGrade(score);
 }
 
 export function resultReportFileName(result: AttemptResult): string {
@@ -155,9 +156,9 @@ export function drawResultReport(canvas: HTMLCanvasElement, result: AttemptResul
   const pillX = cardX + cardW - 56 - pillW;
   const pillY = cardY + 40;
   roundedPath(ctx, pillX, pillY, pillW, pillH, pillH / 2);
-  ctx.fillStyle = total >= CERTIFICATE_MIN_SCORE ? "#eef8f1" : "#fdf3f3";
+  ctx.fillStyle = total >= PASS_MARK ? "#eef8f1" : "#fdf3f3";
   ctx.fill();
-  ctx.fillStyle = total >= CERTIFICATE_MIN_SCORE ? "#1f7a4c" : "#a33b3b";
+  ctx.fillStyle = total >= PASS_MARK ? "#1f7a4c" : "#a33b3b";
   ctx.textAlign = "center";
   ctx.fillText(pillLabel, pillX + pillW / 2, pillY + 41);
 
@@ -242,9 +243,7 @@ export function drawResultReport(canvas: HTMLCanvasElement, result: AttemptResul
     newScale
       ? "La puntuación global suma las cuatro secciones: 50 puntos de vocabulario y gramática (1 punto por pregunta), 10 de comprensión auditiva (1 punto por pregunta), 20 de expresión escrita (10 por cada una de las dos tareas) y 20 de expresión oral."
       : "Este examen se evaluó con la escala anterior: cada sección se puntuó sobre 100 y la puntuación global se calculó con los pesos 40 / 20 / 20 / 20.",
-    total >= CERTIFICATE_MIN_SCORE
-      ? "El certificado oficial se emite a partir de 60/100 y puede descargarse desde la consulta de resultados, con un código de verificación público."
-      : "El certificado se emite a partir de 60/100. Puedes consultar con tu centro las opciones para volver a preparar el examen.",
+    "La constancia de participación puede descargarse desde la consulta de resultados, con un código de verificación público. Documenta la asistencia al examen y no acredita nivel de competencia.",
   ];
 
   ctx.textAlign = "left";

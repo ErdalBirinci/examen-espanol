@@ -4,7 +4,7 @@
 
 **A complete Spanish proficiency exam platform for language schools and independent exam centres.**
 
-Candidates receive personal exam assignments, complete a four-skill assessment in a calm, distraction-free interface, and receive transparent results and verifiable certificates. Administrators manage content, scheduling, grading and publication from a dedicated console.
+Candidates receive personal exam assignments, complete a four-skill assessment in a calm, distraction-free interface, and receive transparent results and verifiable participation documents. Administrators manage content, scheduling, grading and publication from a dedicated console.
 
 [Live site](https://erdalbirinci.github.io/examen-espanol/) · [Admin console](https://erdalbirinci.github.io/examen-espanol/adminpanel) · [Supabase schema](supabase/schema.sql)
 
@@ -30,7 +30,7 @@ The candidate experience is in Spanish. The administration console is in Turkish
 - Server-side submission, duplicate-submission protection and automatic scoring.
 - Resumable exams through a server-side draft.
 - Result lookup by reference code and email.
-- Verifiable certificates for published results of **60/100 or higher**.
+- A verifiable **constancia de participación** for every published, graded result. It records attendance only and does not certify a level of competence.
 - Responsive, premium UI with optional WebGL backgrounds and reduced-motion support.
 
 ## Screenshots
@@ -39,7 +39,7 @@ All screenshots below are from the live GitHub Pages deployment.
 
 ![Candidate landing page](docs/screenshots/landing-desktop.png)
 
-*The candidate landing page: exam overview, 3D certificate medallion and the candidate sign-in panel.*
+*The candidate landing page: exam overview, 3D medallion and the candidate sign-in panel.*
 
 | Mobile candidate landing | Mobile result lookup |
 | :---: | :---: |
@@ -47,7 +47,7 @@ All screenshots below are from the live GitHub Pages deployment.
 
 ![Administrator sign-in](docs/screenshots/admin-login.png)
 
-*The administrator sign-in screen. Administrators manage assignments, content, grading and certificates from the console.*
+*The administrator sign-in screen. Administrators manage assignments, content, grading and participation documents from the console.*
 
 ## Features
 
@@ -62,7 +62,7 @@ All screenshots below are from the live GitHub Pages deployment.
 - **Pre-submit review.** A summary shows which sections are complete and which are still missing before final submission.
 - **Result lookup.** A reference code and email are enough to retrieve the candidate's own result summary.
 - **Downloadable report.** A graded result can be saved as an A4 PDF with the section-by-section breakdown (test, listening, writing part 1 and 2, speaking).
-- **Certificates.** Eligible candidates can download a PDF or PNG certificate and share a public verification link.
+- **Participation document.** Every graded candidate whose result is published can download a PDF or PNG *constancia de participación* and share a public verification link.
 
 ### Exam integrity
 
@@ -140,7 +140,7 @@ JSON format:
 3. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
 4. Final submission validates the assignment and writes a locked attempt. Test and listening answers are scored immediately (1 point per question); writing and speaking wait for manual grading.
 5. The administrator reviews the attempt, enters section scores and publishes the result when ready.
-6. The candidate can look up the result and, if eligible, generate a certificate with a public verification code.
+6. The candidate can look up the result and download a participation document with a public verification code.
 
 ## Exam structure and scoring
 
@@ -159,15 +159,15 @@ The random question set is fixed for each draft: the 50 question IDs and the lis
 
 Each assignment can define its own duration. If no duration is provided, the level default from `exam_settings` applies (45–90 minutes in the sample configuration). The timer is anchored to the server-side draft start, so refreshing the page or switching devices does not reset it.
 
-### Certificates
+### Participation document
 
-A certificate is issued only when all of the following are true:
+The centre does not certify language competence, so candidates receive a *constancia de participación* instead of a certificate. The document states that the candidate sat the Examen de Español at a given level and date; it does not show the score and carries no level or grade claim.
 
-- the attempt has been graded;
-- the result is published to the candidate;
-- the total score is at least **60/100**.
+It is issued when the attempt has been graded and the result is published to the candidate. There is no score threshold.
 
-The certificate code is random and does not expose the candidate's email. `/certificado/<code>` is a public verification page that returns only the certificate fields through the `get_certificate` function. Certificates can be downloaded as PDF or PNG, copied as a link, or shared to LinkedIn, X, WhatsApp and Facebook.
+The document code is random and does not expose the candidate's email. `/certificado/<code>` is the public verification page; it returns only the document fields through the `get_certificate` function, and no longer exposes the score. Documents can be downloaded as PDF or PNG, copied as a link, or shared to LinkedIn, X, WhatsApp and Facebook.
+
+The database functions keep their original names (`issue_certificate`, `get_certificate`, `attempts.certificate_code`) so previously shared verification links and issued codes continue to work.
 
 ## Getting started
 
@@ -214,6 +214,9 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
    - [`20261030_candidate_admin.sql`](supabase/migrations/20261030_candidate_admin.sql)
    - [`20261031_candidate_activity_filters.sql`](supabase/migrations/20261031_candidate_activity_filters.sql)
+   - [`20261101_scoring_v2.sql`](supabase/migrations/20261101_scoring_v2.sql)
+   - [`20261102_admin_candidate_scores.sql`](supabase/migrations/20261102_admin_candidate_scores.sql)
+   - [`20261103_participation_certificate.sql`](supabase/migrations/20261103_participation_certificate.sql)
 
    The migrations are idempotent and safe to run again.
 4. Create the administrator account in **Authentication → Users → Add user**:
@@ -287,7 +290,7 @@ The `404.html` fallback is required because GitHub Pages has no server-side rewr
 - The candidate role has no access to correct answers, other candidates' attempts or admin-only tables.
 - Candidate account management runs through `security definer` functions that re-check `is_admin()` on every call. The browser never receives a service-role key.
 - Disabling an account also removes its sessions. Revoking sessions invalidates refresh tokens immediately; an already-issued access token can remain valid until its normal expiry (about one hour).
-- Public certificate verification returns only the certificate holder's name, level, score and dates; it never returns an email address or answers.
+- Public verification of a participation document returns only the holder's name, level and dates; it never returns an email address, score or answers.
 - Listening audio is public so candidates can play it. Speaking recordings are private and are opened by administrators through signed URLs.
 - All storage and table policies live in `supabase/schema.sql` and the migrations.
 
@@ -354,7 +357,7 @@ If the secrets are missing, grading still works. The admin console shows a confi
 | `/cuenta/restablecer` | Set a new password |
 | `/examen/:assignmentId` | The four-section exam |
 | `/resultado` | Result lookup by reference code and email |
-| `/certificado/:code` | Public certificate verification |
+| `/certificado/:code` | Public participation-document verification |
 | `/adminpanel` | Admin sign-in |
 | `/adminpanel/panel` | Admin overview |
 | `/adminpanel/kullanicilar` | Registered users and account management |

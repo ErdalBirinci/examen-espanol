@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Award, ClipboardCheck, Clock3, FileDown, Search } from "lucide-react";
+import { ClipboardCheck, Clock3, FileDown, Search } from "lucide-react";
 import { Button, Field, Notice, Spinner } from "../components/ui";
 import { BackLink, SiteFooter, SiteHeader } from "../components/SiteHeader";
 import { CertificatePanel } from "./Certificate";
@@ -167,7 +167,7 @@ export default function ResultPage() {
             {certificateLoading && (
               <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-white/85 bg-white/60 px-4 py-3 text-[12.5px] text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
                 <Spinner className="size-4" />
-                Preparando tu certificado…
+                Preparando tu constancia…
               </div>
             )}
             {certificateError && (
@@ -178,17 +178,6 @@ export default function ResultPage() {
           </>
         )}
 
-        {result &&
-          result.results_visible !== false &&
-          result.status === "graded" &&
-          result.total_score !== null &&
-          result.total_score < 60 && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-white/85 bg-white/60 px-4 py-3 text-[12.5px] leading-relaxed text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md">
-              <Award className="mt-0.5 size-4 shrink-0 text-faint" />
-              El certificado se emite a partir de 60/100. Puedes consultar con tu centro las opciones
-              para volver a preparar el examen.
-            </div>
-          )}
       </main>
       <SiteFooter note="Consulta privada de resultados" />
     </div>

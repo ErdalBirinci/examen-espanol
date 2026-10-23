@@ -70,7 +70,7 @@ export function canvasToJpeg(canvas: HTMLCanvasElement, quality = 0.94): Promise
     canvas.toBlob(
       async (blob) => {
         if (!blob) {
-          reject(new Error("No se pudo generar la imagen del certificado."));
+          reject(new Error("No se pudo generar la imagen del documento."));
           return;
         }
         resolve(new Uint8Array(await blob.arrayBuffer()));

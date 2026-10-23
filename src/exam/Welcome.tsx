@@ -163,7 +163,7 @@ export default function Welcome() {
           <section className="anim-rise pt-2 lg:pt-6">
             <span className="premium-kicker">
               <Sparkles className="size-3 text-gold" />
-              Certificación de lengua · A1 — C2
+              Evaluación de lengua · A1 — C2
             </span>
 
             <h1 className="mt-6 text-[clamp(2.9rem,6.4vw,4.9rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-balance">
@@ -223,7 +223,7 @@ export default function Welcome() {
                 <Check className="size-3.5 text-success" /> Tiempo adaptado al nivel
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Check className="size-3.5 text-success" /> Certificado verificable
+                <Check className="size-3.5 text-success" /> Constancia de participación
               </span>
             </p>
           </section>
@@ -444,7 +444,7 @@ export default function Welcome() {
             </TiltCard>
 
             <p className="mt-4 text-center text-[11px] leading-relaxed text-faint">
-              Tus datos se usan únicamente para gestionar tus exámenes y tu certificado.
+              Tus datos se usan únicamente para gestionar tus exámenes y tu constancia de participación.
             </p>
           </section>
         </div>

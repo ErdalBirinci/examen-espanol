@@ -31,7 +31,7 @@ const HIGHLIGHTS = [
   {
     icon: ShieldCheck,
     title: "Değerlendirme akışı",
-    text: "Sonuçları yayınlayın, sertifikaları güvenle üretin.",
+    text: "Sonuçları yayınlayın, katılım belgelerini güvenle üretin.",
   },
 ];
 

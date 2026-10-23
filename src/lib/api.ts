@@ -239,11 +239,11 @@ export async function issueCertificate(
   });
   if (error) {
     const message = error.message ?? "";
-    if (message.includes("CERTIFICATE_NOT_FOUND")) fail("Sertifika için sınav kaydı bulunamadı.");
+    if (message.includes("CERTIFICATE_NOT_FOUND")) fail("Katılım belgesi için sınav kaydı bulunamadı.");
     if (message.includes("CERTIFICATE_HIDDEN")) fail("Sonuçlar henüz yayınlanmadı.");
-    if (message.includes("CERTIFICATE_NOT_READY")) fail("Sertifika için değerlendirme tamamlanmadı.");
-    if (message.includes("CERTIFICATE_NOT_ELIGIBLE")) fail("Sertifika için gereken puan sağlanmadı.");
-    fail(`Sertifika oluşturulamadı: ${message}`);
+    if (message.includes("CERTIFICATE_NOT_READY")) fail("Katılım belgesi için değerlendirme tamamlanmadı.");
+    if (message.includes("CERTIFICATE_NOT_ELIGIBLE")) fail("Katılım belgesi için koşullar sağlanmadı.");
+    fail(`Katılım belgesi oluşturulamadı: ${message}`);
   }
   return data as CertificateRecord;
 }
@@ -252,7 +252,7 @@ export async function getCertificate(code: string): Promise<CertificateRecord | 
   const { data, error } = await supabase.rpc("get_certificate", {
     p_certificate: code.trim().toLowerCase(),
   });
-  if (error) fail(`Sertifika doğrulanamadı: ${error.message}`);
+  if (error) fail(`Katılım belgesi doğrulanamadı: ${error.message}`);
   return (data as CertificateRecord | null) ?? null;
 }
 
