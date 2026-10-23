@@ -80,6 +80,7 @@ The admin console covers the complete exam lifecycle:
 | Section | What it does |
 | --- | --- |
 | **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
+| **Users** | Registered candidate accounts with lifecycle detail, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
 | **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
 | **Exam results** | Review answers, listening transcripts, writing samples and speaking recordings; assign section scores; publish results; trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
@@ -208,6 +209,7 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261027_membership.sql`](supabase/migrations/20261027_membership.sql)
    - [`20261028_assignment_settings.sql`](supabase/migrations/20261028_assignment_settings.sql)
    - [`20261029_certificates.sql`](supabase/migrations/20261029_certificates.sql)
+   - [`20261030_candidate_admin.sql`](supabase/migrations/20261030_candidate_admin.sql)
 
    The migrations are idempotent and safe to run again.
 4. Create the administrator account in **Authentication → Users → Add user**:
@@ -279,6 +281,8 @@ The `404.html` fallback is required because GitHub Pages has no server-side rewr
 - Candidate accounts use Supabase Auth email/password. Registration is restricted by `check_candidate_email`, which checks for an existing assignment or previous attempt.
 - Admin authentication uses a username converted to `<username>@examen.local`. Access is checked against `profiles.role = 'admin'` in the UI and, more importantly, by RLS policies in the database.
 - The candidate role has no access to correct answers, other candidates' attempts or admin-only tables.
+- Candidate account management runs through `security definer` functions that re-check `is_admin()` on every call. The browser never receives a service-role key.
+- Disabling an account also removes its sessions. Revoking sessions invalidates refresh tokens immediately; an already-issued access token can remain valid until its normal expiry (about one hour).
 - Public certificate verification returns only the certificate holder's name, level, score and dates; it never returns an email address or answers.
 - Listening audio is public so candidates can play it. Speaking recordings are private and are opened by administrators through signed URLs.
 - All storage and table policies live in `supabase/schema.sql` and the migrations.
@@ -349,6 +353,7 @@ If the secrets are missing, grading still works. The admin console shows a confi
 | `/certificado/:code` | Public certificate verification |
 | `/adminpanel` | Admin sign-in |
 | `/adminpanel/panel` | Admin overview |
+| `/adminpanel/kullanicilar` | Registered users and account management |
 | `/adminpanel/atamalar` | Candidate exam assignments |
 | `/adminpanel/sonuclar` | Exam results and grading |
 | `/adminpanel/test` | Multiple-choice questions |
@@ -373,6 +378,7 @@ If the secrets are missing, grading still works. The admin console shows a confi
 - **Anonymous writes to `attempts` are disabled.** New attempts are only created by the server-side submission function.
 - **The JSON backup is read-only.** The overview page can export all tables, but automatic restore is not implemented.
 - **Results are paginated server-side** at 25 rows per page; name/email search runs in the database.
+- **Deleting a candidate removes their account, assignments, attempts, drafts and speaking recordings.** The recordings are removed from Storage first, then the database rows; the delete is not reversible.
 - **Email confirmation should be configured deliberately.** The sample workflow assumes it is disabled; if you enable it, set up your own SMTP provider and test the full registration and password-reset flow.
 - **Free-tier Supabase limits apply** (1 GB storage and 500 MB database at the time of writing). Review the current plan before a large exam session.
 - **The 3D scenes are progressive enhancement.** A CSS medallion remains visible if WebGL is unavailable, and the scenes respect reduced-motion and lower-end mobile devices.

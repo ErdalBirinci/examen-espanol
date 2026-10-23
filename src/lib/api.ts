@@ -553,6 +553,141 @@ export async function fetchMyProfile(): Promise<AdminProfile | null> {
   return (data as AdminProfile | null) ?? null;
 }
 
+export interface ManagedCandidateSummary {
+  id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  banned_until: string | null;
+  assignments_count: number;
+  attempts_count: number;
+  pending_count: number;
+  certificates_count: number;
+  latest_activity: string | null;
+}
+
+export interface ManagedCandidateAccount {
+  id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  banned_until: string | null;
+  sessions: number;
+}
+
+export interface ManagedAssignment {
+  id: string;
+  level: Level;
+  title: string | null;
+  note: string | null;
+  due_at: string | null;
+  duration_minutes: number | null;
+  results_visible: boolean;
+  created_at: string;
+  attempt_id: string | null;
+  attempt_status: "submitted" | "graded" | null;
+  submitted_at: string | null;
+}
+
+export interface ManagedAttempt {
+  id: string;
+  level: Level;
+  status: "submitted" | "graded";
+  created_at: string;
+  submitted_at: string;
+  mc_correct: number | null;
+  mc_total: number | null;
+  listening_score: number | null;
+  writing_score: number | null;
+  speaking_score: number | null;
+  certificate_code: string | null;
+  certificate_issued_at: string | null;
+  result_notified_at: string | null;
+  speaking_path: string | null;
+}
+
+export interface ManagedDraft {
+  code: string;
+  level: Level;
+  started_at: string;
+  updated_at: string;
+  answered: number;
+  listening_answered: number;
+  writing_chars: number;
+}
+
+export interface ManagedCandidateDetail {
+  account: ManagedCandidateAccount;
+  assignments: ManagedAssignment[];
+  attempts: ManagedAttempt[];
+  drafts: ManagedDraft[];
+}
+
+function failManaged(error: { message?: string } | null, fallback: string): never {
+  const message = error?.message ?? "";
+  if (message.includes("UNAUTHORIZED")) {
+    fail("Bu işlem için yönetici yetkisi gerekiyor.");
+  }
+  if (message.includes("CANDIDATE_NOT_FOUND")) {
+    fail("Kullanıcı bulunamadı veya artık mevcut değil.");
+  }
+  fail(`${fallback}: ${message}`);
+}
+
+export async function listManagedCandidates(): Promise<ManagedCandidateSummary[]> {
+  const { data, error } = await supabase.rpc("admin_list_candidates");
+  if (error) failManaged(error, "Kullanıcılar yüklenemedi");
+  return (data ?? []) as unknown as ManagedCandidateSummary[];
+}
+
+export async function getManagedCandidateDetail(email: string): Promise<ManagedCandidateDetail> {
+  const { data, error } = await supabase.rpc("admin_candidate_detail", {
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) failManaged(error, "Kullanıcı detayı yüklenemedi");
+  return data as unknown as ManagedCandidateDetail;
+}
+
+export async function setManagedCandidateDisabled(
+  email: string,
+  disabled: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_set_candidate_disabled", {
+    p_email: email.trim().toLowerCase(),
+    p_disabled: disabled,
+  });
+  if (error) failManaged(error, "Hesap durumu güncellenemedi");
+}
+
+export async function revokeManagedCandidateSessions(email: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_revoke_candidate_sessions", {
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) failManaged(error, "Oturumlar sonlandırılamadı");
+}
+
+export async function deleteManagedCandidate(email: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_delete_candidate", {
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) failManaged(error, "Kullanıcı silinemedi");
+}
+
+export async function sendManagedCandidatePasswordReset(email: string): Promise<void> {
+  await requestPasswordReset(email);
+}
+
+export async function deleteCandidateRecordings(paths: string[]): Promise<void> {
+  const unique = [...new Set(paths.filter((path) => path.trim().length > 0))];
+  if (unique.length === 0) return;
+  const { error } = await supabase.storage.from(RECORDINGS_BUCKET).remove(unique);
+  if (error) fail(`Ses kayıtları silinemedi: ${error.message}`);
+}
+
 export async function listAttempts(): Promise<Attempt[]> {
   const { data, error } = await supabase
     .from("attempts")

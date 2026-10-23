@@ -11,6 +11,7 @@ import {
   Menu,
   Mic,
   PenLine,
+  Users,
   X,
 } from "lucide-react";
 import { signOutAdmin, type AdminProfile } from "../lib/api";
@@ -19,6 +20,7 @@ import { Brand } from "../components/Brand";
 
 const NAV = [
   { to: "/adminpanel/panel", label: "Genel Bakış", icon: LayoutDashboard },
+  { to: "/adminpanel/kullanicilar", label: "Kullanıcılar", icon: Users },
   { to: "/adminpanel/atamalar", label: "Aday Sınavları", icon: CalendarClock },
   { to: "/adminpanel/sonuclar", label: "Sınav Sonuçları", icon: ClipboardList },
   { to: "/adminpanel/test", label: "Test Soruları", icon: ListChecks },

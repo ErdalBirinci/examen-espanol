@@ -10,6 +10,7 @@ import { RequestPasswordReset, ResetPassword } from "./exam/PasswordRecovery";
 import AdminLogin from "./admin/AdminLogin";
 import AdminGate from "./admin/AdminGate";
 import Overview from "./admin/Overview";
+import Users from "./admin/Users";
 import Attempts from "./admin/Attempts";
 import Questions from "./admin/Questions";
 import Listening from "./admin/Listening";
@@ -58,6 +59,7 @@ export default function App() {
             <Route index element={<AdminLogin />} />
             <Route element={<AdminGate />}>
               <Route path="panel" element={<Overview />} />
+              <Route path="kullanicilar" element={<Users />} />
               <Route path="sonuclar" element={<Attempts />} />
               <Route path="test" element={<Questions />} />
               <Route path="cevap-anahtari" element={<AnswerKey />} />
