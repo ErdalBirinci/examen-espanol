@@ -73,6 +73,11 @@ export interface ResultRow {
  */
 export function resultBreakdown(result: AttemptResult): ResultRow[] {
   const isNewScale = result.scoring_version >= 2;
+  // Bölüm puanları eski satırlarda ya da eski yanıtlarda hiç gelmeyebilir.
+  const writing1 = result.writing_part1_score ?? null;
+  const writing2 = result.writing_part2_score ?? null;
+  const speaking1 = result.speaking_part1_score ?? null;
+  const speaking2 = result.speaking_part2_score ?? null;
 
   return [
     {
@@ -103,8 +108,8 @@ export function resultBreakdown(result: AttemptResult): ResultRow[] {
       score: result.writing_score,
       max: isNewScale ? 20 : 100,
       detail:
-        isNewScale && (result.writing_part1_score !== null || result.writing_part2_score !== null)
-          ? `Tarea 1: ${result.writing_part1_score ?? "—"}/10 · Tarea 2: ${result.writing_part2_score ?? "—"}/10`
+        isNewScale && (writing1 !== null || writing2 !== null)
+          ? `Tarea 1: ${writing1 ?? "—"}/10 · Tarea 2: ${writing2 ?? "—"}/10`
           : null,
     },
     {
@@ -112,7 +117,10 @@ export function resultBreakdown(result: AttemptResult): ResultRow[] {
       label: "Expresión Oral",
       score: result.speaking_score,
       max: isNewScale ? 20 : 100,
-      detail: null,
+      detail:
+        isNewScale && (speaking1 !== null || speaking2 !== null)
+          ? `Parte 1: ${speaking1 ?? "—"}/10 · Parte 2: ${speaking2 ?? "—"}/10`
+          : null,
     },
   ];
 }

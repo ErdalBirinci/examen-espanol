@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Check, Download, FileUp, Upload, X } from "lucide-react";
-import { deleteQuestion, importQuestions, listQuestions, saveQuestion } from "../lib/api";
+import {
+  deleteQuestion,
+  importQuestions,
+  listQuestionRevisions,
+  listQuestions,
+  saveQuestion,
+} from "../lib/api";
 import { parseQuestionImport } from "../lib/questionImport";
 import { csvFileName, questionsToCsv } from "../lib/questionExport";
-import type { Level, QuestionAdmin } from "../lib/types";
-import { cn, errorMessage } from "../lib/utils";
+import type { Level, QuestionAdmin, QuestionRevision } from "../lib/types";
+import { cn, errorMessage, formatDate } from "../lib/utils";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
 
@@ -33,6 +39,8 @@ export default function Questions() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [revisions, setRevisions] = useState<QuestionRevision[]>([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
 
   const importPreview = useMemo(
     () => parseQuestionImport(importText, questions),
@@ -79,6 +87,13 @@ export default function Questions() {
     });
     setFormError(null);
     setOpen(true);
+
+    setRevisions([]);
+    setRevisionsLoading(true);
+    listQuestionRevisions(question.id)
+      .then(setRevisions)
+      .catch(() => setRevisions([]))
+      .finally(() => setRevisionsLoading(false));
   }
 
   async function submit() {
@@ -373,6 +388,55 @@ export default function Questions() {
               />
             </Field>
           </div>
+
+          {editing && (
+            <div className="mt-4 rounded-xl border border-line bg-[#fcfcfe] p-3">
+              <p className="text-[11.5px] font-medium">Sürüm geçmişi</p>
+              {revisionsLoading ? (
+                <div className="mt-2 text-muted">
+                  <Spinner className="size-4" />
+                </div>
+              ) : revisions.length === 0 ? (
+                <p className="mt-1.5 text-[11px] text-faint">
+                  Bu soru için kayıt yok. İlk düzenlemeden sonra burada görünür.
+                </p>
+              ) : (
+                <ul className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                  {revisions.map((revision) => (
+                    <li
+                      key={revision.id}
+                      className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-[11px]"
+                    >
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge
+                          tone={
+                            revision.action === "updated"
+                              ? "accent"
+                              : revision.action === "deleted"
+                                ? "danger"
+                                : "neutral"
+                          }
+                        >
+                          {revision.action === "updated"
+                            ? "Güncellendi"
+                            : revision.action === "deleted"
+                              ? "Silindi"
+                              : "Oluşturuldu"}
+                        </Badge>
+                        <span className="text-muted">{formatDate(revision.created_at)}</span>
+                        {revision.actor_email && (
+                          <span className="text-faint">{revision.actor_email}</span>
+                        )}
+                      </div>
+                      {revision.prompt && (
+                        <p className="mt-1 line-clamp-2 text-muted">{revision.prompt}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
 

@@ -5,16 +5,7 @@ import { listeningAudioUrl } from "../lib/api";
 import type { ListeningExam } from "../lib/types";
 import { cn } from "../lib/utils";
 
-/** Shared answer bank, in the order the administrator entered it. */
-function columnBank(listening: ListeningExam): string[] {
-  const bank: string[] = [];
-  for (const question of listening.questions) {
-    for (const option of question.options) {
-      if (option.trim() && !bank.includes(option)) bank.push(option);
-    }
-  }
-  return bank;
-}
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 export default function ListeningStep({
   listening,
@@ -39,7 +30,7 @@ export default function ListeningStep({
         <StepHeader
           index={2}
           title="Comprensión Auditiva"
-          description="Escucha la grabación y elige la opción correcta para cada frase."
+          description="Escucha los diálogos y elige la respuesta de la mujer en cada uno."
         />
         <SectionEmpty
           message={
@@ -54,7 +45,6 @@ export default function ListeningStep({
   }
 
   const { item, questions } = listening;
-  const bank = columnBank(listening);
   const answeredCount = questions.filter((entry) => answers[entry.id] !== undefined).length;
 
   return (
@@ -62,7 +52,7 @@ export default function ListeningStep({
       <StepHeader
         index={2}
         title="Comprensión Auditiva"
-        description="Escucha la grabación y elige la opción correcta en cada frase. Puedes cambiar tus respuestas cuando quieras."
+        description="Escucha los diálogos y elige la respuesta de la mujer en cada uno. Puedes cambiar tus respuestas cuando quieras."
         aside={
           <div className="glass-inset flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[12px] text-muted">
             <Headphones className="size-4 text-accent" />
@@ -91,89 +81,74 @@ export default function ListeningStep({
           </div>
         </div>
 
-        <div className="overflow-x-auto px-2 py-4 sm:px-6 sm:py-6">
-          <table className="w-full min-w-[620px] border-separate border-spacing-0">
-            <thead>
-              <tr>
-                <th scope="col" className="w-[42%] px-2 pb-3 text-left align-bottom">
-                  <span className="text-[10.5px] font-semibold tracking-[0.1em] text-faint uppercase">
-                    Frase
+        <ol className="space-y-3 px-4 py-5 sm:px-8 sm:py-6">
+          {questions.map((question, rowIndex) => {
+            const selected = answers[question.id];
+            const answered = selected !== undefined;
+            return (
+              <li
+                key={question.id}
+                className="rounded-2xl border border-line/80 bg-white/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+              >
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-[#f3f3f6] text-[11px] font-semibold text-muted tabular-nums">
+                    {rowIndex + 1}
                   </span>
-                </th>
-                {bank.map((option) => (
-                  <th
-                    key={option}
-                    scope="col"
-                    className="max-w-[120px] px-1.5 pb-3 text-center align-bottom text-[11.5px] leading-tight font-medium text-muted"
+                  <p
+                    className={cn(
+                      "text-[14px] leading-relaxed",
+                      answered ? "font-medium text-ink" : "text-muted",
+                    )}
                   >
-                    {option}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {questions.map((question, rowIndex) => {
-                const selected = answers[question.id];
-                const answered = selected !== undefined;
-                return (
-                  <tr key={question.id} className={rowIndex % 2 === 1 ? "bg-white/25" : undefined}>
-                    <th
-                      scope="row"
-                      className={cn(
-                        "sticky left-0 z-10 px-2 py-3 text-left align-middle text-[13px] leading-snug font-normal sm:static sm:bg-transparent",
-                        rowIndex % 2 === 1 ? "bg-[#fbfcff]" : "bg-white",
-                      )}
-                    >
-                      <span className="mr-1.5 text-[11px] text-faint tabular-nums">
-                        {String(rowIndex + 1).padStart(2, "0")}
-                      </span>
-                      <span className={answered ? "text-ink" : "text-muted"}>{question.prompt}</span>
-                    </th>
+                    {question.prompt}
+                  </p>
+                </div>
 
-                    {bank.map((option) => {
-                      const optionIndex = question.options.indexOf(option);
-                      const available = optionIndex >= 0;
-                      const active = available && selected === optionIndex;
-                      return (
-                        <td key={option} className="px-1.5 py-3 text-center align-middle">
-                          {available ? (
-                            <button
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              aria-label={`${question.prompt} — ${option}`}
-                              onClick={() => onChange(question.id, optionIndex)}
-                              className="focus-ring group mx-auto flex size-8 items-center justify-center rounded-full"
-                            >
-                              <span
-                                className={cn(
-                                  "flex size-[22px] items-center justify-center rounded-full border-2 transition-all duration-150",
-                                  active
-                                    ? "border-accent bg-accent text-white shadow-[0_6px_14px_-8px_rgba(47,107,255,0.9)]"
-                                    : "border-[#c9d3e2] bg-white/70 group-hover:border-accent/60 group-hover:bg-white",
-                                )}
-                              >
-                                {active && <Check className="size-3" strokeWidth={3.5} />}
-                              </span>
-                            </button>
-                          ) : (
-                            <span aria-hidden className="text-[11px] text-[#d7dde8]">
-                              —
-                            </span>
+                <div
+                  role="radiogroup"
+                  aria-label={`Pregunta ${rowIndex + 1}`}
+                  className="mt-3 space-y-1.5 pl-0 sm:pl-8"
+                >
+                  {question.options.map((option, optionIndex) => {
+                    const active = selected === optionIndex;
+                    return (
+                      <button
+                        key={optionIndex}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => onChange(question.id, optionIndex)}
+                        className={cn(
+                          "focus-ring flex w-full items-start gap-2.5 rounded-xl border px-3 py-2 text-left transition",
+                          active
+                            ? "border-[#b9d0f5] bg-[linear-gradient(135deg,rgba(238,245,255,0.95),rgba(255,255,255,0.7))] shadow-[0_10px_24px_-22px_rgba(47,107,255,0.9)]"
+                            : "border-line/70 bg-white/45 hover:border-[#d9e2f0] hover:bg-white/80",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition",
+                            active
+                              ? "border-accent bg-accent text-white"
+                              : "border-[#c9d3e2] bg-white/80 text-faint",
                           )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="px-5 pb-1 text-[11px] text-faint sm:hidden">
-          Desliza la tabla hacia los lados para ver todas las opciones.
-        </p>
+                          aria-hidden
+                        >
+                          {active ? (
+                            <Check className="size-3" strokeWidth={3.5} />
+                          ) : (
+                            LETTERS[optionIndex]
+                          )}
+                        </span>
+                        <span className="text-[12.5px] leading-snug">{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
 
         <div className="border-t border-white/70 bg-white/30 px-6 py-4 sm:px-8">
           <div className="flex items-center justify-between text-[11.5px] font-medium text-muted">
@@ -197,7 +172,7 @@ export default function ListeningStep({
         onBack={onBack}
         onNext={onNext}
         nextLabel="Ir a expresión escrita"
-        hint={`${answeredCount} de ${questions.length} frases respondidas`}
+        hint={`${answeredCount} de ${questions.length} diálogos respondidos`}
       />
     </div>
   );

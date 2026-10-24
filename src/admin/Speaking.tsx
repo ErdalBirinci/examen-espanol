@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Mic, Pencil, Plus, Trash2 } from "lucide-react";
-import { deleteSpeaking, listSpeaking, saveSpeaking } from "../lib/api";
+import { deleteSpeaking, listSpeaking, promptImageUrl, saveSpeaking } from "../lib/api";
 import type { Level, SpeakingPrompt } from "../lib/types";
 import { errorMessage, formatSeconds } from "../lib/utils";
-import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
+import { Button, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
+
+interface Slot {
+  part: 1 | 2;
+  title: string;
+  hint: string;
+}
+
+const SLOTS: Slot[] = [
+  { part: 1, title: "Bölüm 1", hint: "Aday ses kaydı yükler · 10 puan" },
+  { part: 2, title: "Bölüm 2", hint: "Kayıt yok, yönetici canlı değerlendirir · 10 puan" },
+];
 
 export default function Speaking() {
   const [level, setLevel] = useState<Level>("A1");
@@ -13,11 +24,12 @@ export default function Speaking() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SpeakingPrompt | null>(null);
+  const [part, setPart] = useState<1 | 2>(1);
   const [prompt, setPrompt] = useState("");
   const [guidance, setGuidance] = useState("");
   const [prep, setPrep] = useState(60);
   const [maxSeconds, setMaxSeconds] = useState(120);
-  const [position, setPosition] = useState(1);
+  const [imagePath, setImagePath] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<SpeakingPrompt | null>(null);
@@ -39,24 +51,19 @@ export default function Speaking() {
     void load(level);
   }, [level, load]);
 
-  function openCreate() {
-    setEditing(null);
-    setPrompt("");
-    setGuidance("");
-    setPrep(60);
-    setMaxSeconds(120);
-    setPosition(items.length + 1);
-    setFormError(null);
-    setOpen(true);
+  function findPart(target: 1 | 2): SpeakingPrompt | null {
+    return items.find((item) => item.part === target) ?? null;
   }
 
-  function openEdit(item: SpeakingPrompt) {
-    setEditing(item);
-    setPrompt(item.prompt);
-    setGuidance(item.guidance ?? "");
-    setPrep(item.prep_seconds);
-    setMaxSeconds(item.max_seconds);
-    setPosition(item.position);
+  function openSlot(target: 1 | 2) {
+    const existing = findPart(target);
+    setEditing(existing);
+    setPart(target);
+    setPrompt(existing?.prompt ?? "");
+    setGuidance(existing?.guidance ?? "");
+    setPrep(existing?.prep_seconds ?? (target === 1 ? 60 : 0));
+    setMaxSeconds(existing?.max_seconds ?? (target === 1 ? 150 : 180));
+    setImagePath(existing?.image_path ?? "");
     setFormError(null);
     setOpen(true);
   }
@@ -74,9 +81,11 @@ export default function Speaking() {
         level,
         prompt,
         guidance: guidance.trim() || null,
-        prep_seconds: Math.max(0, prep),
+        prep_seconds: part === 1 ? Math.max(0, prep) : 0,
         max_seconds: Math.max(15, maxSeconds),
-        position: Number(position) || 0,
+        position: part,
+        part,
+        image_path: imagePath.trim() || null,
       });
       setOpen(false);
       await load(level);
@@ -105,12 +114,7 @@ export default function Speaking() {
     <div>
       <PageHeader
         title="Konuşma"
-        description="Her seviye için sözlü konu belirle. Aday, konu üzerine ses kaydı oluşturup yükler (maksimum 50 MB)."
-        action={
-          <Button onClick={openCreate} icon={<Plus className="size-4" />}>
-            Konu ekle
-          </Button>
-        }
+        description="Her seviye için iki bölüm tanımla. Bölüm 1'de aday ses kaydı yükler; bölüm 2'de kayıt alınmaz, yönetici canlı değerlendirir. Her bölüm 10 puandır."
       />
 
       <LevelTabs value={level} onChange={setLevel} suffix={(code) => (code === level ? items.length : undefined)} />
@@ -125,60 +129,94 @@ export default function Speaking() {
         <div className="flex justify-center py-20 text-muted">
           <Spinner className="size-5" />
         </div>
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={<Mic className="size-5" />}
-          title={`${level} için konuşma konusu yok`}
-          description="Konu eklediğinde adaylar konuşma bölümünde bu metni görecek. İlk konu kullanılır."
-          action={<Button onClick={openCreate}>Konu ekle</Button>}
-        />
       ) : (
-        <div className="space-y-2.5">
-          {items.map((item, index) => (
-            <Panel key={item.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 gap-3">
-                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-[#f3f3f6] text-[11px] font-semibold text-muted tabular-nums">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[13.5px] leading-relaxed">{item.prompt}</p>
-                    {item.guidance && (
-                      <p className="mt-1 text-[12px] text-muted">{item.guidance}</p>
-                    )}
-                    <p className="mt-1 text-[11.5px] text-faint">
-                      Hazırlık {formatSeconds(item.prep_seconds)} · kayıt {formatSeconds(item.max_seconds)} · sıra{" "}
-                      {item.position}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {SLOTS.map((slot) => {
+            const existing = findPart(slot.part);
+            return (
+              <Panel key={slot.part} className="flex flex-col p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10.5px] font-semibold tracking-[0.1em] text-faint uppercase">
+                      {slot.title}
                     </p>
+                    <p className="mt-1 text-[11.5px] text-muted">{slot.hint}</p>
                   </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#f3f3f6] hover:text-ink"
-                    aria-label="Düzenle"
+                  <span
+                    className={
+                      existing
+                        ? "rounded-full bg-[#eef8f1] px-2.5 py-1 text-[10.5px] font-semibold text-success"
+                        : "rounded-full bg-[#fdf8ec] px-2.5 py-1 text-[10.5px] font-semibold text-warning"
+                    }
                   >
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setToDelete(item)}
-                    className="rounded-lg p-1.5 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
-                    aria-label="Sil"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                    {existing ? "Hazır" : "Eksik"}
+                  </span>
                 </div>
-              </div>
-            </Panel>
-          ))}
+
+                {existing ? (
+                  <>
+                    <p className="mt-4 text-[13.5px] leading-relaxed whitespace-pre-line">
+                      {existing.prompt}
+                    </p>
+                    {existing.guidance && (
+                      <p className="mt-1 text-[12px] leading-relaxed text-muted">{existing.guidance}</p>
+                    )}
+                    {existing.image_path && (
+                      <img
+                        src={promptImageUrl(existing.image_path)}
+                        alt={`Konuşma ${slot.part}`}
+                        className="mt-3 max-h-40 w-full rounded-lg border border-line bg-white object-contain"
+                      />
+                    )}
+                    <p className="mt-2 flex-1 text-[11.5px] text-faint">
+                      {slot.part === 1
+                        ? `Hazırlık ${formatSeconds(existing.prep_seconds)} · kayıt ${formatSeconds(existing.max_seconds)}`
+                        : `Konuşma süresi ${formatSeconds(existing.max_seconds)} · kayıt alınmaz`}
+                    </p>
+                    <div className="mt-4 flex items-center gap-2 border-t border-line pt-3">
+                      <Button
+                        variant="secondary"
+                        onClick={() => openSlot(slot.part)}
+                        icon={<Pencil className="size-3.5" />}
+                      >
+                        Düzenle
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setToDelete(existing)}
+                        className="rounded-lg p-2 text-faint transition hover:bg-[#fdf0f0] hover:text-danger"
+                        aria-label="Sil"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 flex flex-1 flex-col items-start justify-center rounded-xl border border-dashed border-[#e2e2e9] bg-[#fcfcfe] p-5">
+                    <Mic className="size-5 text-faint" />
+                    <p className="mt-2 text-[12.5px] text-muted">
+                      Bu bölüm için henüz konu tanımlanmadı.
+                    </p>
+                    <Button
+                      className="mt-3"
+                      onClick={() => openSlot(slot.part)}
+                      icon={<Plus className="size-3.5" />}
+                    >
+                      Konu ekle
+                    </Button>
+                  </div>
+                )}
+              </Panel>
+            );
+          })}
         </div>
       )}
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "Konuşma konusunu düzenle" : "Yeni konuşma konusu"}
-        description={`${level} seviyesi`}
+        title={`Konuşma ${part}. bölümü ${editing ? "düzenle" : "ekle"}`}
+        description={`${level} seviyesi · 10 puan${part === 2 ? " · kayıt yok" : ""}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -192,10 +230,21 @@ export default function Speaking() {
       >
         <div className="space-y-4">
           {formError && <Notice tone="danger">{formError}</Notice>}
-          <Field label="Konu">
+          <Field
+            label="Konu"
+            hint={
+              part === 2
+                ? "Adayın fotoğraf üzerine yapacağı konuşma. Yönetici canlı dinleyip puanlar."
+                : "Adayın ses kaydında yanıtlayacağı konu."
+            }
+          >
             <textarea
               className="field min-h-[110px] resize-y"
-              placeholder="Describe tu ciudad ideal y explica por qué te gustaría vivir allí."
+              placeholder={
+                part === 1
+                  ? "Habla sobre el transporte público y el transporte privado."
+                  : "Describe con detalle lo que ves en la foto y lo que imaginas que está ocurriendo."
+              }
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
@@ -204,24 +253,25 @@ export default function Speaking() {
           <Field label="Yönlendirme (opsiyonel)" hint="Adaya verilecek kısa ipuçları.">
             <textarea
               className="field min-h-[70px] resize-y"
-              placeholder="Habla de la ubicación, el clima y las personas."
+              placeholder="Incluye las ventajas e inconvenientes de cada medio de transporte."
               value={guidance}
               onChange={(event) => setGuidance(event.target.value)}
             />
           </Field>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Hazırlık (sn)">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Hazırlık (sn)" hint={part === 2 ? "Bölüm 2'de hazırlık süresi kullanılmaz." : "0–600"}>
               <input
                 type="number"
                 min={0}
                 max={600}
                 className="field"
-                value={prep}
+                disabled={part === 2}
+                value={part === 2 ? 0 : prep}
                 onChange={(event) => setPrep(Number(event.target.value))}
               />
             </Field>
-            <Field label="Kayıt süresi (sn)">
+            <Field label="Konuşma süresi (sn)" hint="15–600">
               <input
                 type="number"
                 min={15}
@@ -231,23 +281,33 @@ export default function Speaking() {
                 onChange={(event) => setMaxSeconds(Number(event.target.value))}
               />
             </Field>
-            <Field label="Sıra">
-              <input
-                type="number"
-                min={0}
-                className="field"
-                value={position}
-                onChange={(event) => setPosition(Number(event.target.value))}
-              />
-            </Field>
           </div>
+
+          <Field
+            label="Görsel yolu (opsiyonel)"
+            hint="exam-media kovasındaki yol, örn. prompts/b1-oral-2.jpg. Aday konuyla birlikte fotoğrafı görür."
+          >
+            <input
+              className="field"
+              placeholder="prompts/b1-oral-2.jpg"
+              value={imagePath}
+              onChange={(event) => setImagePath(event.target.value)}
+            />
+          </Field>
+          {imagePath.trim() && (
+            <img
+              src={promptImageUrl(imagePath.trim())}
+              alt="Görsel önizleme"
+              className="max-h-48 w-full rounded-lg border border-line bg-white object-contain"
+            />
+          )}
         </div>
       </Modal>
 
       <ConfirmDialog
         open={Boolean(toDelete)}
         title="Konuşma konusunu sil"
-        description={toDelete?.prompt ?? ""}
+        description={toDelete ? `${toDelete.part}. bölüm · ${toDelete.prompt.slice(0, 80)}` : ""}
         loading={deleting}
         onConfirm={() => void handleDelete()}
         onClose={() => setToDelete(null)}

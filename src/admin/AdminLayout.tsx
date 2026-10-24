@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
+  BarChart3,
   CalendarClock,
   ClipboardList,
   Headphones,
@@ -23,6 +24,7 @@ const NAV = [
   { to: "/adminpanel/kullanicilar", label: "Kullanıcılar", icon: Users },
   { to: "/adminpanel/atamalar", label: "Aday Sınavları", icon: CalendarClock },
   { to: "/adminpanel/sonuclar", label: "Sınav Sonuçları", icon: ClipboardList },
+  { to: "/adminpanel/analiz", label: "Madde Analizi", icon: BarChart3 },
   { to: "/adminpanel/test", label: "Test Soruları", icon: ListChecks },
   { to: "/adminpanel/cevap-anahtari", label: "Cevap Anahtarı", icon: KeyRound },
   { to: "/adminpanel/dinleme", label: "Dinleme", icon: Headphones },

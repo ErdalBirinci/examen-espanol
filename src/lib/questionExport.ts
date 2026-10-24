@@ -8,8 +8,11 @@ export interface ExportableQuestion {
 
 const LETTERS = "ABCDEF";
 
+/** Keeps spreadsheet programs from evaluating a cell as a formula. */
 function cell(value: string | number): string {
-  return `"${String(value).replace(/"/g, '""')}"`;
+  const text = String(value);
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
 /**

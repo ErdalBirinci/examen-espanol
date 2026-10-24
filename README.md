@@ -53,7 +53,7 @@ All screenshots below are from the live GitHub Pages deployment.
 
 ### Candidate experience
 
-- **Invitation-gated accounts.** Registration is only available to an email address that already has an exam assignment or a previous submission.
+- **Open registration.** Anyone can create an account with a name, e-mail and password; the centre assigns exams to that e-mail afterwards.
 - **Personal dashboard.** Candidates see only their own assignments, with level, note, due date and current status.
 - **Flexible section order.** Candidates can move between the four sections freely; answers are preserved per section.
 - **Autosave and resume.** A server-side draft is written while the exam is in progress. The same browser resumes automatically; another device can continue with the draft code and email.
@@ -61,7 +61,7 @@ All screenshots below are from the live GitHub Pages deployment.
 - **Automatic submission.** When time runs out, the current exam is submitted instead of being lost.
 - **Pre-submit review.** A summary shows which sections are complete and which are still missing before final submission.
 - **Result lookup.** A reference code and email are enough to retrieve the candidate's own result summary.
-- **Downloadable report.** A graded result can be saved as an A4 PDF with the section-by-section breakdown (test, listening, writing part 1 and 2, speaking).
+- **Downloadable report.** A graded result can be saved as an A4 PDF with the section-by-section breakdown (test, listening, writing part 1 and 2, speaking part 1 and 2).
 - **Participation document.** Every graded candidate whose result is published can download a PDF or PNG *constancia de participación* and share a public verification link.
 
 ### Exam integrity
@@ -74,6 +74,21 @@ All screenshots below are from the live GitHub Pages deployment.
 - Test and listening scoring runs in Postgres. Writing and speaking points are entered by an administrator and the total is recalculated server-side.
 - Result fields are hidden by server functions until the assignment's results are published.
 
+### Practice mode
+
+`/deneme` offers an open, unscored practice test: ten random questions for the chosen level, instant feedback with the correct option, and no attempt record. Answers are checked by the `practice_check` database function, which only reveals keys for the questions the visitor actually answered.
+
+### Grading workflow
+
+- **Rubrics.** Each writing part and each speaking part can be scored criterion by criterion (0–5 each). The database rejects a rubric whose total does not match the section score, so stored points always have a traceable breakdown.
+- **Queue.** “Sıradaki bekleyen” opens the oldest ungraded attempt and “Kaydet ve sıradakine geç” moves straight to the next one.
+- **Review aids.** Speaking recordings play at 0.75×–1.5× speed, and the signalled integrity counters (tab switches, paste attempts) are shown next to the answers.
+- **Audit trail.** Every submission and every change to points, note, rubric or status is appended to `grading_audit` with the administrator's email; the attempt detail lists the last 50 entries.
+- **Question history.** Each create, update and delete of a test question stores a snapshot in `question_revisions`, visible from the edit dialog.
+- **Bulk operations.** Assignments can be created for a list of e-mails at once and published or hidden in bulk from the selection toolbar.
+- **CSV export.** The results list exports every row matching the current filters (up to 5,000) with all section points.
+- **Client errors.** Uncaught errors and unhandled rejections are stored in `client_errors` (at most ten per tab) for later inspection in the SQL editor.
+
 ### Administration
 
 The admin console covers the complete exam lifecycle:
@@ -82,13 +97,13 @@ The admin console covers the complete exam lifecycle:
 | --- | --- |
 | **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
 | **Users** | Registered candidate accounts with lifecycle detail, date-range and activity-type filters, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
-| **Candidate exams** | Create and delete assignments with email, level, title, note, due date, duration and result visibility |
-| **Exam results** | Review test answers, listening answers, both writing parts and the speaking recording; the listening score is calculated from the keyed answers, writing (0–10 + 0–10) and speaking (0–20) are scored by the administrator; publish results and trigger result emails |
+| **Candidate exams** | Create assignments for one or many e-mails (level, title, note, due date, duration, result visibility), then publish or hide results in bulk |
+| **Exam results** | Review test answers, listening answers, both writing parts and the part 1 speaking recording; the listening score is calculated from the keyed answers, writing (0–10 + 0–10) and speaking (0–10 + 0–10) are scored by the administrator with optional rubrics; a grading queue, audit trail and CSV export are built in; publish results and trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
 | **Answer key** | One-page answer key per level with the correct option, answer text and grading note; printable and downloadable as CSV |
 | **Listening** | Upload audio (up to 50 MB), title, play limit and ordering, then key the multiple-choice questions for each recording |
 | **Writing** | Two prompts per level (part 1 and part 2), each with a minimum word count |
-| **Speaking** | One prompt per level with preparation and speaking times |
+| **Speaking** | Two parts per level: part 1 is recorded by the candidate, part 2 shows a photograph and is assessed live by the examiner; each part has its own prompt, guidance, preparation and speaking times |
 
 Admin routes require a Supabase session whose profile has `role = 'admin'`. All data access is additionally protected by row-level security.
 
@@ -135,12 +150,13 @@ JSON format:
 
 ### Data flow
 
-1. An administrator creates listening, writing and speaking content, then assigns an exam to a candidate email.
-2. The candidate registers or signs in, opens the assigned exam and receives a server-backed draft.
-3. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
-4. Final submission validates the assignment and writes a locked attempt. Test and listening answers are scored immediately (1 point per question); writing and speaking wait for manual grading.
-5. The administrator reviews the attempt, enters section scores and publishes the result when ready.
-6. The candidate can look up the result and download a participation document with a public verification code.
+1. The candidate creates an account with a name, e-mail and password. No assignment is needed at that point.
+2. An administrator creates listening, writing and speaking content and assigns an exam to the candidate e-mail; the exam then appears in the candidate's panel.
+3. The candidate signs in, opens the assigned exam and receives a server-backed draft.
+4. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
+5. Final submission validates the assignment and writes a locked attempt. Test and listening answers are scored immediately (1 point per question); both writing parts and both speaking parts wait for manual grading.
+6. The administrator reviews the attempt, enters section scores and publishes the result when ready.
+7. The candidate can look up the result and download a participation document with a public verification code.
 
 ## Exam structure and scoring
 
@@ -217,8 +233,15 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261101_scoring_v2.sql`](supabase/migrations/20261101_scoring_v2.sql)
    - [`20261102_admin_candidate_scores.sql`](supabase/migrations/20261102_admin_candidate_scores.sql)
    - [`20261103_participation_certificate.sql`](supabase/migrations/20261103_participation_certificate.sql)
+   - [`20261104_exam_ops.sql`](supabase/migrations/20261104_exam_ops.sql)
+   - [`20261105_security_hardening.sql`](supabase/migrations/20261105_security_hardening.sql)
+   - [`20261106_storage_hardening.sql`](supabase/migrations/20261106_storage_hardening.sql)
+   - [`20261107_b1_exam_and_speaking_parts.sql`](supabase/migrations/20261107_b1_exam_and_speaking_parts.sql)
+   - [`20261108_result_speaking_parts.sql`](supabase/migrations/20261108_result_speaking_parts.sql)
+   - [`20261109_open_registration.sql`](supabase/migrations/20261109_open_registration.sql)
+   - [`20261110_legacy_email_check_stub.sql`](supabase/migrations/20261110_legacy_email_check_stub.sql) — constant stub so frontends built before open registration keep working; it can be dropped once the current build is deployed.
 
-   The migrations are idempotent and safe to run again.
+   The migrations are idempotent and safe to run again. After applying them, run `npm run verify:db` (reads only the public anon key). It checks the RPCs, audit tables and rubric columns, and also probes the public security surface: practice-mode answer keys, anonymous writes to `attempts`, draft ownership, admin RPC permissions, table RLS and storage bucket access.
 4. Create the administrator account in **Authentication → Users → Add user**:
    - Email: `<username>@examen.local` (for example `yonetici@examen.local`)
    - Password: a strong password of your choice
@@ -285,7 +308,7 @@ The `404.html` fallback is required because GitHub Pages has no server-side rewr
 
 ## Authentication and security
 
-- Candidate accounts use Supabase Auth email/password. Registration is restricted by `check_candidate_email`, which checks for an existing assignment or previous attempt.
+- Candidate accounts use Supabase Auth email/password. Registration is open; the account is only useful once an administrator assigns an exam to its e-mail, and it sees nothing else.
 - Admin authentication uses a username converted to `<username>@examen.local`. Access is checked against `profiles.role = 'admin'` in the UI and, more importantly, by RLS policies in the database.
 - The candidate role has no access to correct answers, other candidates' attempts or admin-only tables.
 - Candidate account management runs through `security definer` functions that re-check `is_admin()` on every call. The browser never receives a service-role key.

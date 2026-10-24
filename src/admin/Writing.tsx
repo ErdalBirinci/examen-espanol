@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, PenLine, Plus, Trash2 } from "lucide-react";
-import { deleteWriting, listWriting, saveWriting } from "../lib/api";
+import { deleteWriting, listWriting, promptImageUrl, saveWriting } from "../lib/api";
 import type { Level, WritingPrompt } from "../lib/types";
 import { errorMessage } from "../lib/utils";
 import { Button, Field, Modal, Notice, Spinner } from "../components/ui";
@@ -27,6 +27,7 @@ export default function Writing() {
   const [part, setPart] = useState<1 | 2>(1);
   const [prompt, setPrompt] = useState("");
   const [minWords, setMinWords] = useState(80);
+  const [imagePath, setImagePath] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<WritingPrompt | null>(null);
@@ -58,6 +59,7 @@ export default function Writing() {
     setPart(target);
     setPrompt(existing?.prompt ?? "");
     setMinWords(existing?.min_words ?? (target === 1 ? 80 : 120));
+    setImagePath(existing?.image_path ?? "");
     setFormError(null);
     setOpen(true);
   }
@@ -77,6 +79,7 @@ export default function Writing() {
         min_words: Math.max(20, minWords),
         position: editing?.position ?? part,
         part,
+        image_path: imagePath.trim() || null,
       });
       setOpen(false);
       await load(level);
@@ -146,7 +149,16 @@ export default function Writing() {
 
                 {existing ? (
                   <>
-                    <p className="mt-4 flex-1 text-[13.5px] leading-relaxed">{existing.prompt}</p>
+                    <p className="mt-4 flex-1 text-[13.5px] leading-relaxed whitespace-pre-line">
+                      {existing.prompt}
+                    </p>
+                    {existing.image_path && (
+                      <img
+                        src={promptImageUrl(existing.image_path)}
+                        alt={`Yazma ${slot.part}`}
+                        className="mt-3 max-h-40 w-full rounded-lg border border-line bg-white object-contain"
+                      />
+                    )}
                     <p className="mt-2 text-[11.5px] text-faint">
                       Minimum {existing.min_words} kelime
                     </p>
@@ -229,6 +241,25 @@ export default function Writing() {
               onChange={(event) => setMinWords(Number(event.target.value))}
             />
           </Field>
+
+          <Field
+            label="Görsel yolu (opsiyonel)"
+            hint="exam-media kovasındaki yol, örn. prompts/b1-writing-1.jpg. Aday görevin görselini görür."
+          >
+            <input
+              className="field"
+              placeholder="prompts/b1-writing-1.jpg"
+              value={imagePath}
+              onChange={(event) => setImagePath(event.target.value)}
+            />
+          </Field>
+          {imagePath.trim() && (
+            <img
+              src={promptImageUrl(imagePath.trim())}
+              alt="Görsel önizleme"
+              className="max-h-48 w-full rounded-lg border border-line bg-white object-contain"
+            />
+          )}
         </div>
       </Modal>
 

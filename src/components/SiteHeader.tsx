@@ -58,6 +58,9 @@ export function SiteFooter({ note }: { note?: string }) {
     <footer className="mx-auto mt-20 flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-white/70 px-5 py-7 text-[11px] text-faint sm:px-8">
       <span>© 2026 Examen de Español · Evaluación de lengua</span>
       <span className="flex items-center gap-4">
+        <Link to="/deneme" className="transition hover:text-ink">
+          Modo de práctica
+        </Link>
         <Link to="/resultado" className="transition hover:text-ink">
           Consultar resultado
         </Link>

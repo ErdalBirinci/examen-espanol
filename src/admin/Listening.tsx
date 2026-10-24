@@ -169,14 +169,10 @@ export default function Listening() {
 
   function openNewQuestion(itemId: string) {
     const nextPosition = (counts[itemId] ?? 0) + 1;
-    // Every question of one recording shares the same answer columns, so the
-    // new row starts from the bank an existing row already uses.
-    const sibling = questions.find((question) => question.item_id === itemId);
-    const inherited = sibling?.options.filter((option) => option.trim()) ?? [];
     setQuestionItemId(itemId);
     setEditingQuestion(null);
     setQuestionPrompt("");
-    setQuestionOptions(inherited.length >= MIN_OPTIONS ? inherited : ["", "", "", ""]);
+    setQuestionOptions(["", "", ""]);
     setQuestionCorrect(0);
     setQuestionPosition(nextPosition);
     setQuestionError(null);
@@ -259,7 +255,7 @@ export default function Listening() {
     <div>
       <PageHeader
         title="Dinleme"
-        description="Ses kaydını yükle, ortak cevap sütunlarını ve her cümlenin doğru şıkkını belirle. Aday kaydı dinleyip cümleleri doğru seçenekle eşleştirir; her ses kaydı 10 soru ve 10 puanla değerlendirilir."
+        description="Ses kaydını yükle, her sorunun kendi seçeneklerini ve doğru şıkkını belirle. Aday kaydı dinleyip her soruda doğru seçeneği işaretler; her soru 1 puan, bölüm 10 puandır."
         action={
           <Button onClick={openCreate} icon={<Plus className="size-4" />}>
             Ses kaydı ekle
@@ -292,13 +288,6 @@ export default function Listening() {
             const itemQuestions = questions.filter((question) => question.item_id === item.id);
             const isExpanded = expanded === item.id;
             const questionCount = counts[item.id] ?? 0;
-            const bank = itemQuestions[0]?.options.filter((option) => option.trim()) ?? [];
-            const inconsistent =
-              itemQuestions.length > 1 &&
-              itemQuestions.some(
-                (question) =>
-                  JSON.stringify(question.options) !== JSON.stringify(itemQuestions[0].options),
-              );
             return (
               <Panel key={item.id} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -376,26 +365,10 @@ export default function Listening() {
                     </div>
 
                     {itemQuestions.length > 0 && (
-                      <div className="mt-3 rounded-lg border border-line bg-white px-3 py-2.5">
-                        <p className="text-[10.5px] font-semibold tracking-[0.08em] text-faint uppercase">
-                          Cevap sütunları
-                        </p>
-                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted">
-                          {bank.map((option, index) => (
-                            <span key={`${option}-${index}`} className="inline-flex items-center gap-1">
-                              <span className="font-semibold text-faint">{LETTERS[index]}</span>
-                              {option}
-                            </span>
-                          ))}
-                        </p>
-                        {inconsistent && (
-                          <p className="mt-1.5 text-[11px] leading-relaxed text-warning">
-                            Soruların seçenekleri birbirinden farklı. Aday ekranındaki sütunlar tüm
-                            soruların seçeneklerinden oluşur; aynı kaydın tüm sorularında aynı
-                            seçenekleri kullan.
-                          </p>
-                        )}
-                      </div>
+                      <p className="mt-3 rounded-lg border border-line bg-white px-3 py-2.5 text-[11.5px] leading-relaxed text-muted">
+                        Her soru kendi seçenekleriyle aday ekranında görünür. Bir kayıttaki sorular
+                        farklı seçenekler kullanabilir.
+                      </p>
                     )}
 
                     {itemQuestions.length === 0 ? (
@@ -537,7 +510,7 @@ export default function Listening() {
         open={questionOpen}
         onClose={() => setQuestionOpen(false)}
         title={editingQuestion ? "Dinleme sorusunu düzenle" : "Yeni dinleme sorusu"}
-        description="Cümle, ortak cevap sütunları ve tek doğru şık. Her soru 1 puandır."
+        description="Soru metni, seçenekleri ve tek doğru şık. Her soru 1 puandır."
         footer={
           <>
             <Button variant="ghost" onClick={() => setQuestionOpen(false)}>
@@ -568,7 +541,7 @@ export default function Listening() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-[12px] font-medium text-muted">Cevap sütunları</p>
+              <p className="text-[12px] font-medium text-muted">Seçenekler</p>
               <span className="text-[11px] text-faint tabular-nums">
                 {questionOptions.length} / {MAX_OPTIONS}
               </span>
@@ -619,8 +592,8 @@ export default function Listening() {
               </button>
             )}
             <p className="text-[11px] leading-relaxed text-faint">
-              Bu seçenekler aday ekranında sütun başlığı olur; aynı kaydın tüm sorularında aynı
-              bankayı kullan. Doğru cevabı işaretlemek için soldaki harfe tıkla. Seçili:{" "}
+              Bu seçenekler yalnızca bu soruda gösterilir. Doğru cevabı işaretlemek için soldaki
+              harfe tıkla. Seçili:{" "}
               <span className="font-semibold text-success">{LETTERS[questionCorrect]}</span>
             </p>
           </div>

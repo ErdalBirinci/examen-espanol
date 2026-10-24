@@ -98,6 +98,8 @@ export interface WritingPrompt {
   min_words: number;
   position: number;
   part: 1 | 2;
+  /** Public storage path of the task image (email, advert…), when present. */
+  image_path: string | null;
 }
 
 export interface SpeakingPrompt {
@@ -108,9 +110,42 @@ export interface SpeakingPrompt {
   prep_seconds: number;
   max_seconds: number;
   position: number;
+  /** 1: recorded and scored out of 10; 2: examiner-scored out of 10, no recording. */
+  part: 1 | 2;
+  image_path: string | null;
 }
 
 export type AttemptStatus = "submitted" | "graded";
+
+/** Her ölçüt 0–5 arası; iki ölçütün toplamı bölüm puanını (0–10) verir. */
+export interface WritingRubricPart {
+  task: number;
+  language: number;
+}
+
+export interface WritingRubric {
+  part1: WritingRubricPart;
+  part2: WritingRubricPart;
+}
+
+/** Her ölçüt 0–5 arası; iki ölçütün toplamı bölüm puanını (0–10) verir. */
+export interface SpeakingRubricPart {
+  content: number;
+  language: number;
+}
+
+export interface SpeakingRubric {
+  part1: SpeakingRubricPart;
+  part2: SpeakingRubricPart;
+}
+
+export interface AttemptIntegrity {
+  focus_losses?: number;
+  paste_attempts?: number;
+  copy_attempts?: number;
+  fullscreen_exits?: number;
+  duration_seconds?: number;
+}
 
 export interface Attempt {
   id: string;
@@ -136,9 +171,16 @@ export interface Attempt {
   writing_part1_score: number | null;
   writing_part2_score: number | null;
   writing_score: number | null;
+  speaking_part1_score: number | null;
+  speaking_part2_score: number | null;
   speaking_score: number | null;
   total_score: number | null;
   admin_note: string | null;
+  certificate_code?: string | null;
+  writing_rubric?: WritingRubric | null;
+  speaking_rubric?: SpeakingRubric | null;
+  graded_at?: string | null;
+  integrity?: AttemptIntegrity | null;
   result_notified_at?: string | null;
   created_at: string;
   submitted_at: string;
@@ -153,7 +195,8 @@ export interface ExamBundle {
   questions: QuestionPublic[];
   listening: ListeningExam | null;
   writing: WritingPrompt[];
-  speaking: SpeakingPrompt | null;
+  /** One entry per speaking part, ordered by part. */
+  speaking: SpeakingPrompt[];
   settings: ExamSettings;
 }
 
@@ -164,6 +207,19 @@ export interface ContentStats {
   listening_questions: number;
   writing: number;
   speaking: number;
+}
+
+/** Per-question statistics used by the admin item analysis screen. */
+export interface QuestionStat {
+  question_id: string;
+  prompt: string;
+  options: string[];
+  correct_index: number;
+  position: number;
+  appearances: number;
+  correct_count: number;
+  p_value: number | null;
+  discrimination: number;
 }
 
 export interface Candidate {
@@ -188,9 +244,64 @@ export interface AttemptResult {
   writing_score: number | null;
   writing_part1_score: number | null;
   writing_part2_score: number | null;
+  speaking_part1_score: number | null;
+  speaking_part2_score: number | null;
   speaking_score: number | null;
   total_score: number | null;
   results_visible?: boolean;
+}
+
+export interface GradingAuditEntry {
+  id: number;
+  action: string;
+  actor_email: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface DashboardSummary {
+  attempts: {
+    total: number;
+    pending: number;
+    graded: number;
+    last7: number;
+    avg_total: number | null;
+    passed: number;
+    awaiting_email: number;
+  };
+  levels: { level: Level; attempts: number; pending: number; avg_total: number | null }[];
+  content: { questions: number; listening: number; writing: number; speaking: number };
+}
+
+export interface QuestionRevision {
+  id: number;
+  question_id: string;
+  level: Level | null;
+  prompt: string | null;
+  options: string[] | null;
+  correct_index: number | null;
+  explanation: string | null;
+  position: number | null;
+  action: "created" | "updated" | "deleted" | string;
+  actor_email: string | null;
+  created_at: string;
+}
+
+export interface PracticeBundle {
+  /** Sunucudaki deneme oturumu; skor kontrolü bu kimlikle yapılır. */
+  session: string | null;
+  level: Level;
+  questions: QuestionPublic[];
+}
+
+/**
+ * Deneme sonucu yalnızca toplam skoru içerir; soru bazlı doğru/yanlış veya
+ * doğru şık dönmez. Böylece gerçek sınavın cevap anahtarı dışarı sızmaz.
+ */
+export interface PracticeResult {
+  correct: number;
+  total: number;
 }
 
 export interface CertificateRecord {

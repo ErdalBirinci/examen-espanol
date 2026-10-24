@@ -241,7 +241,7 @@ export function drawResultReport(canvas: HTMLCanvasElement, result: AttemptResul
   const newScale = result.scoring_version >= 2;
   const notes = [
     newScale
-      ? "La puntuación global suma las cuatro secciones: 50 puntos de vocabulario y gramática (1 punto por pregunta), 10 de comprensión auditiva (1 punto por pregunta), 20 de expresión escrita (10 por cada una de las dos tareas) y 20 de expresión oral."
+      ? "La puntuación global suma las cuatro secciones: 50 puntos de vocabulario y gramática (1 punto por pregunta), 10 de comprensión auditiva (1 punto por pregunta), 20 de expresión escrita (10 por cada una de las dos tareas) y 20 de expresión oral (10 por cada una de las dos partes: la grabación y la entrevista con el examinador)."
       : "Este examen se evaluó con la escala anterior: cada sección se puntuó sobre 100 y la puntuación global se calculó con los pesos 40 / 20 / 20 / 20.",
     "La constancia de participación puede descargarse desde la consulta de resultados, con un código de verificación público. Documenta la asistencia al examen y no acredita nivel de competencia.",
   ];

@@ -375,7 +375,7 @@ export default function Welcome() {
                         <Field
                           label="Nombre y apellidos"
                           htmlFor="register-name"
-                          hint="Los mismos datos que usaste en tu examen anterior."
+                          hint="Aparecerá así en tu informe y en tu constancia."
                         >
                           <input
                             id="register-name"
@@ -433,8 +433,8 @@ export default function Welcome() {
                           Crear cuenta
                         </Button>
                         <p className="text-[11px] leading-relaxed text-faint">
-                          Solo pueden registrarse personas que ya hayan realizado un examen con este
-                          correo. Si no es tu caso, contacta con tu centro.
+                          Crea tu cuenta con el correo que usarás en el examen. Cuando tu centro te
+                          asigne una prueba, aparecerá automáticamente en tu panel.
                         </p>
                       </form>
                     )}

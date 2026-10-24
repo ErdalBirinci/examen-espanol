@@ -1,5 +1,6 @@
 import { PenLine } from "lucide-react";
 import { SectionEmpty, StepFooter, StepHeader } from "./Shell";
+import { promptImageUrl } from "../lib/api";
 import type { WritingPrompt } from "../lib/types";
 import { cn, wordCount } from "../lib/utils";
 
@@ -80,9 +81,16 @@ export default function WritingStep({
                       {words} / mín. {prompt.min_words} palabras
                     </span>
                   </div>
-                  <p className="mt-2.5 text-[16.5px] leading-relaxed font-medium tracking-[-0.015em] sm:text-[18px]">
+                  <p className="mt-2.5 text-[16.5px] leading-relaxed font-medium tracking-[-0.015em] sm:text-[18px] whitespace-pre-line">
                     {prompt.prompt}
                   </p>
+                  {prompt.image_path && (
+                    <img
+                      src={promptImageUrl(prompt.image_path)}
+                      alt={`Tarea ${prompt.part}`}
+                      className="mt-3 w-full max-w-lg rounded-xl border border-line bg-white object-contain shadow-sm"
+                    />
+                  )}
                 </div>
 
                 <div className="px-6 py-5 sm:px-8">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Trash2, Upload, Volume2 } from "lucide-react";
 import { SectionEmpty, StepFooter, StepHeader } from "./Shell";
 import { Notice } from "../components/ui";
+import { promptImageUrl } from "../lib/api";
 import type { SpeakingPrompt } from "../lib/types";
 import { cn, formatBytes, formatSeconds, errorMessage } from "../lib/utils";
 
@@ -25,18 +26,21 @@ function extensionFor(mime: string): string {
 }
 
 export default function SpeakingStep({
-  prompt,
+  prompts,
   value,
   onChange,
   onContinue,
   onBack,
 }: {
-  prompt: SpeakingPrompt | null;
+  prompts: SpeakingPrompt[];
   value: RecordingPayload | null;
   onChange: (payload: RecordingPayload | null) => void;
   onContinue: () => void;
   onBack: () => void;
 }) {
+  const ordered = [...prompts].sort((a, b) => a.part - b.part);
+  const prompt = ordered.find((entry) => entry.part === 1) ?? ordered[0] ?? null;
+  const second = ordered.find((entry) => entry.id !== prompt?.id) ?? null;
   const [mode, setMode] = useState<"record" | "upload">("record");
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -232,7 +236,7 @@ export default function SpeakingStep({
       <StepHeader
         index={4}
         title="Expresión oral"
-        description="Prepara tu respuesta, graba con naturalidad y revisa la grabación antes de enviar."
+        description="La sección tiene dos partes. En la parte 1 graba tu respuesta; la parte 2 la evalúa el examinador en directo, sin grabación."
         aside={
           <div className="glass-inset rounded-2xl px-4 py-2.5 text-center">
             <p className="text-[10.5px] font-medium tracking-[0.08em] text-faint uppercase">Duración máx.</p>
@@ -245,7 +249,7 @@ export default function SpeakingStep({
         <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,247,255,0.85),rgba(255,255,255,0.35))] px-6 py-6 sm:px-8">
           <div className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.12em] text-accent-ink uppercase">
             <Volume2 className="size-3.5" />
-            Tema para hablar
+            Parte 1 · Tema para hablar
           </div>
           <p className="mt-2.5 text-[17px] leading-relaxed font-medium tracking-[-0.015em] sm:text-[19px]">
             {prompt.prompt}
@@ -460,12 +464,46 @@ export default function SpeakingStep({
         </div>
       </div>
 
+      {second && (
+        <div className="anim-rise card mt-4 overflow-hidden">
+          <div className="border-b border-white/70 bg-[linear-gradient(135deg,rgba(243,247,255,0.85),rgba(255,255,255,0.35))] px-6 py-6 sm:px-8">
+            <div className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.12em] text-accent-ink uppercase">
+              <Volume2 className="size-3.5" />
+              Parte 2 · Evaluación en directo · 10 puntos
+            </div>
+            <p className="mt-2.5 text-[17px] leading-relaxed font-medium tracking-[-0.015em] sm:text-[19px]">
+              {second.prompt}
+            </p>
+            {second.guidance && (
+              <p className="mt-2.5 text-[13px] leading-relaxed text-muted">{second.guidance}</p>
+            )}
+            {second.image_path && (
+              <img
+                src={promptImageUrl(second.image_path)}
+                alt="Fotografía de la parte 2"
+                className="mt-4 w-full max-w-xl rounded-xl border border-line bg-white object-contain shadow-sm"
+              />
+            )}
+          </div>
+          <div className="px-6 py-5 sm:px-8">
+            <p className="rounded-xl border border-[#dce8f8] bg-[#f5f9ff] px-4 py-3 text-[12px] leading-relaxed text-accent-ink">
+              En esta parte no se sube ninguna grabación: el examinador te escucha en directo y
+              valora tu descripción sobre 10 puntos. Cuando termines, pulsa “Revisar y enviar”.
+            </p>
+          </div>
+        </div>
+      )}
+
       <StepFooter
         onBack={onBack}
         onNext={onContinue}
         nextLabel="Revisar y enviar"
         nextDisabled={recording}
-        hint={value ? "Respuesta lista" : "Puedes continuar sin grabación, pero puntuará vacía"}
+        hint={
+          value
+            ? "Parte 1 lista · la parte 2 se evalúa en directo"
+            : "Puedes continuar sin grabación, pero puntuará vacía"
+        }
       />
     </div>
   );

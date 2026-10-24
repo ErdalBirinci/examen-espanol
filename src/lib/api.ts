@@ -7,18 +7,27 @@ import {
 } from "./supabase";
 import type {
   Attempt,
+  AttemptIntegrity,
   AttemptResult,
   Candidate,
   CertificateRecord,
   ContentStats,
+  DashboardSummary,
   ExamBundle,
   ExamSettings,
+  GradingAuditEntry,
   Level,
   ListeningItem,
   ListeningQuestionAdmin,
+  PracticeBundle,
+  PracticeResult,
   QuestionAdmin,
+  QuestionRevision,
+  QuestionStat,
   SpeakingPrompt,
+  SpeakingRubric,
   WritingPrompt,
+  WritingRubric,
 } from "./types";
 
 const ADMIN_EMAIL_DOMAIN = "examen.local";
@@ -199,7 +208,14 @@ export async function saveExamDraft(
 
 export async function getExamDraft(token: string): Promise<ExamDraftSnapshot | null> {
   const { data, error } = await supabase.rpc("get_exam_draft", { p_token: token });
-  if (error) fail(`Taslak yüklenemedi: ${error.message}`);
+  if (error) {
+    const message = error.message ?? "";
+    // The draft belongs to another account or the session expired.
+    if (message.includes("AUTH_REQUIRED")) {
+      fail("Oturumun sona ermiş. Yeniden giriş yapıp sınava devam et.");
+    }
+    fail(`Taslak yüklenemedi: ${message}`);
+  }
   return (data as unknown as ExamDraftSnapshot | null) ?? null;
 }
 
@@ -215,6 +231,12 @@ export async function resumeExamDraft(
   });
   if (error) {
     const message = error.message ?? "";
+    if (message.includes("AUTH_REQUIRED")) {
+      fail("Oturumun sona ermiş. Yeniden giriş yapıp sınava devam et.");
+    }
+    if (message.includes("EMAIL_MISMATCH")) {
+      fail("Bu taslak oturum açtığın hesaba ait değil.");
+    }
     if (message.includes("INVALID_CODE")) fail("Kod 8 karakter olmalı (ör. 4F2A9C1B).");
     if (message.includes("INVALID_EMAIL")) fail("E-posta adresi geçersiz görünüyor.");
     fail(`Taslak sorgulanamadı: ${message}`);
@@ -306,26 +328,16 @@ export async function getCandidateAccount(): Promise<CandidateAccount | null> {
   };
 }
 
-export async function checkCandidateEmail(email: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc("check_candidate_email", {
-    p_email: email.trim().toLowerCase(),
-  });
-  if (error) fail(`E-posta kontrol edilemedi: ${error.message}`);
-  return Boolean(data);
-}
-
+/**
+ * Open registration: anyone can create an account. The admin assigns exams to
+ * the account's e-mail afterwards, so no assignment is required up front.
+ */
 export async function registerCandidate(input: {
   fullName: string;
   email: string;
   password: string;
 }): Promise<{ needsConfirmation: boolean }> {
   const email = input.email.trim().toLowerCase();
-  const registered = await checkCandidateEmail(email);
-  if (!registered) {
-    fail(
-      "Bu e-posta ile daha önce bir sınav kaydı bulunamadı. Önce ad soyad ve e-posta ile sınava girmiş olman gerekiyor.",
-    );
-  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -500,6 +512,57 @@ export async function saveAssignment(input: {
     created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
   });
   if (error) fail(`Sınav atanamadı: ${error.message}`);
+}
+
+export interface BulkAssignmentInput {
+  emails: string[];
+  level: Level;
+  title: string;
+  note: string;
+  dueAt: string | null;
+  durationMinutes: number | null;
+  resultsVisible: boolean;
+}
+
+/** Aynı ayarlarla birden çok adaya tek istekte sınav atar. */
+export async function bulkAssignExam(input: BulkAssignmentInput): Promise<number> {
+  const emails = Array.from(
+    new Set(
+      input.emails
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.includes("@")),
+    ),
+  );
+  if (emails.length === 0) fail("Geçerli bir e-posta adresi bulunamadı.");
+
+  const { data: session } = await supabase.auth.getUser();
+  const { error } = await supabase.from("exam_assignments").insert(
+    emails.map((email) => ({
+      email,
+      level: input.level,
+      title: input.title.trim() || null,
+      note: input.note.trim() || null,
+      due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
+      duration_minutes: input.durationMinutes,
+      results_visible: input.resultsVisible,
+      created_by: session.user?.id ?? null,
+    })),
+  );
+  if (error) fail(`Toplu atama yapılamadı: ${error.message}`);
+  return emails.length;
+}
+
+/** Seçili atamaların sonuç görünürlüğünü tek işlemde değiştirir. */
+export async function setAssignmentsResultsVisible(
+  ids: string[],
+  visible: boolean,
+): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from("exam_assignments")
+    .update({ results_visible: visible })
+    .in("id", ids);
+  if (error) fail(`Toplu yayınlama başarısız: ${error.message}`);
 }
 
 export async function setAssignmentResultsVisible(id: string, visible: boolean): Promise<void> {
@@ -726,14 +789,16 @@ export interface AttemptPage {
   total: number;
 }
 
+/** Commas and parentheses would break PostgREST's or() filter syntax. */
+function attemptSearchNeedle(search: string): string {
+  return search.trim().slice(0, 80).replace(/[,()\\]/g, " ");
+}
+
 export async function listAttemptsPage(query: AttemptQuery): Promise<AttemptPage> {
   let request = supabase.from("attempts").select("*", { count: "exact" });
-
   if (query.level !== "all") request = request.eq("level", query.level);
   if (query.status !== "all") request = request.eq("status", query.status);
-
-  // Commas and parentheses would break PostgREST's or() filter syntax.
-  const needle = query.search.trim().slice(0, 80).replace(/[,()\\]/g, " ");
+  const needle = attemptSearchNeedle(query.search);
   if (needle) {
     request = request.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`);
   }
@@ -747,13 +812,53 @@ export async function listAttemptsPage(query: AttemptQuery): Promise<AttemptPage
   return { rows: (data ?? []) as unknown as Attempt[], total: count ?? 0 };
 }
 
+const EXPORT_COLUMNS =
+  "id,full_name,email,level,status,scoring_version,mc_correct,mc_total,mc_score,listening_score,listening_correct,listening_total,writing_score,writing_part1_score,writing_part2_score,speaking_part1_score,speaking_part2_score,speaking_score,total_score,certificate_code,submitted_at,created_at";
+
+/**
+ * Every row matching the current filters, in batches, for a CSV export.
+ * Deliberately omits the large answer/writing payloads.
+ */
+export async function listAttemptsForExport(
+  query: Omit<AttemptQuery, "page" | "pageSize">,
+  cap = 5000,
+): Promise<Attempt[]> {
+  const batchSize = 500;
+  const rows: Attempt[] = [];
+
+  for (let from = 0; from < cap; from += batchSize) {
+    let request = supabase.from("attempts").select(EXPORT_COLUMNS);
+    if (query.level !== "all") request = request.eq("level", query.level);
+    if (query.status !== "all") request = request.eq("status", query.status);
+    const needle = attemptSearchNeedle(query.search);
+    if (needle) {
+      request = request.or(`full_name.ilike.%${needle}%,email.ilike.%${needle}%`);
+    }
+
+    const { data, error } = await request
+      .order("created_at", { ascending: false })
+      .range(from, Math.min(from + batchSize, cap) - 1);
+
+    if (error) fail(`Sonuçlar dışa aktarılamadı: ${error.message}`);
+    const batch = (data ?? []) as unknown as Attempt[];
+    rows.push(...batch);
+    if (batch.length < batchSize) break;
+  }
+
+  return rows;
+}
+
 export interface GradeInput {
   id: string;
   scoring_version: number;
   writing_part1_score: number | null;
   writing_part2_score: number | null;
-  speaking_score: number | null;
+  speaking_part1_score: number | null;
+  speaking_part2_score: number | null;
+  speaking_score?: number | null;
   admin_note: string | null;
+  writing_rubric?: WritingRubric | null;
+  speaking_rubric?: SpeakingRubric | null;
   // Legacy (scoring_version = 1) attempts keep the old manual fields.
   writing_score?: number | null;
   listening_score?: number | null;
@@ -765,16 +870,22 @@ export async function gradeAttempt(input: GradeInput): Promise<void> {
       p_attempt_id: input.id,
       p_writing_part1: input.writing_part1_score,
       p_writing_part2: input.writing_part2_score,
-      p_speaking: input.speaking_score,
+      p_speaking_part1: input.speaking_part1_score,
+      p_speaking_part2: input.speaking_part2_score,
       p_note: input.admin_note,
+      p_writing_rubric: input.writing_rubric ?? null,
+      p_speaking_rubric: input.speaking_rubric ?? null,
     });
     if (error) {
       const message = error.message ?? "";
       if (message.includes("INCOMPLETE_GRADING")) {
-        fail("Yazma bölümlerinin ikisi ve konuşma puanı girilmeden değerlendirme tamamlanamaz.");
+        fail("Yazma ve konuşma bölümlerinin tümü girilmeden değerlendirme tamamlanamaz.");
       }
       if (message.includes("INVALID_WRITING_SCORE")) fail("Yazma puanları 0–10 arasında olmalı.");
-      if (message.includes("INVALID_SPEAKING_SCORE")) fail("Konuşma puanı 0–20 arasında olmalı.");
+      if (message.includes("INVALID_SPEAKING_SCORE")) fail("Konuşma bölüm puanları 0–10 arasında olmalı.");
+      if (message.includes("RUBRIC_MISMATCH")) {
+        fail("Rubrik puanları bölüm puanlarıyla eşleşmiyor. Rubriği sıfırlayıp yeniden puanla.");
+      }
       fail(`Değerlendirme kaydedilemedi: ${message}`);
     }
     return;
@@ -791,6 +902,106 @@ export async function gradeAttempt(input: GradeInput): Promise<void> {
     })
     .eq("id", input.id);
   if (error) fail(`Değerlendirme kaydedilemedi: ${error.message}`);
+}
+
+/* ------------------------ Değerlendirme akışı ----------------------- */
+
+/** Denetim izi: bir sınavın puanlama geçmişi. */
+export async function listAttemptAudit(attemptId: string): Promise<GradingAuditEntry[]> {
+  const { data, error } = await supabase
+    .from("grading_audit")
+    .select("id,action,actor_email,before,after,created_at")
+    .eq("attempt_id", attemptId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) fail(`Değerlendirme geçmişi yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as GradingAuditEntry[];
+}
+
+/** Değerlendirme kuyruğundaki en eski bekleyen kayıt. */
+export async function nextPendingAttempt(excludeId?: string): Promise<Attempt | null> {
+  let request = supabase
+    .from("attempts")
+    .select("*")
+    .eq("status", "submitted")
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (excludeId) request = request.neq("id", excludeId);
+
+  const { data, error } = await request;
+  if (error) fail(`Sıradaki kayıt yüklenemedi: ${error.message}`);
+  return ((data ?? [])[0] as unknown as Attempt) ?? null;
+}
+
+/** Sınav bütünlüğü sayaçlarını gönderime bağlar (kısa süreli pencere). */
+export async function recordAttemptIntegrity(
+  attemptId: string,
+  integrity: AttemptIntegrity,
+): Promise<void> {
+  const { error } = await supabase.rpc("record_attempt_integrity", {
+    p_attempt_id: attemptId,
+    p_integrity: integrity,
+  });
+  // Bütünlük kaydı gönderimi engellemez; sessizce yutulur.
+  if (error) return;
+}
+
+/** Panelde tek çağrıda sayaçlar + seviye ortalamaları. */
+export async function adminDashboardSummary(): Promise<DashboardSummary> {
+  const { data, error } = await supabase.rpc("admin_dashboard_summary");
+  if (error) fail(`Panel özeti yüklenemedi: ${error.message}`);
+  return data as DashboardSummary;
+}
+
+/** Bir test sorusunun sürüm geçmişi. */
+export async function listQuestionRevisions(questionId: string): Promise<QuestionRevision[]> {
+  const { data, error } = await supabase
+    .from("question_revisions")
+    .select("*")
+    .eq("question_id", questionId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) fail(`Sürüm geçmişi yüklenemedi: ${error.message}`);
+  return (data ?? []) as unknown as QuestionRevision[];
+}
+
+/* --------------------------- Deneme modu ---------------------------- */
+
+/** Rastgele kısa test: cevap anahtarı gönderilmez. */
+export async function practiceBundle(level: Level, count = 10): Promise<PracticeBundle> {
+  const { data, error } = await supabase.rpc("practice_bundle", {
+    p_level: level,
+    p_count: count,
+  });
+  if (error) fail(`Deneme testi yüklenemedi: ${error.message}`);
+  return data as PracticeBundle;
+}
+
+export async function practiceCheck(
+  session: string,
+  answers: Record<string, number>,
+): Promise<PracticeResult> {
+  const { data, error } = await supabase.rpc("practice_check", {
+    p_session: session,
+    p_answers: answers,
+  });
+  if (error) {
+    const message = error.message ?? "";
+    if (message.includes("ALREADY_CHECKED")) {
+      fail("Bu deneme zaten değerlendirildi. Yeni bir deneme başlat.");
+    }
+    if (message.includes("SESSION_EXPIRED")) {
+      fail("Deneme süresi doldu. Yeni bir deneme başlat.");
+    }
+    if (message.includes("SESSION_NOT_FOUND")) {
+      fail("Deneme oturumu bulunamadı. Yeni bir deneme başlat.");
+    }
+    if (message.includes("RATE_LIMIT")) {
+      fail("Çok sık deneme başlatıldı. Bir süre sonra tekrar dene.");
+    }
+    fail(`Deneme testi değerlendirilemedi: ${message}`);
+  }
+  return data as PracticeResult;
 }
 
 export interface NotifyResult {
@@ -1010,12 +1221,18 @@ export function listeningAudioUrl(path: string): string {
   return publicMediaUrl(path);
 }
 
+/** Public URL for a task image stored in the exam-media bucket. */
+export function promptImageUrl(path: string): string {
+  if (path.startsWith("http")) return path;
+  return publicMediaUrl(path);
+}
+
 /* ------------------------------ Yazma ------------------------------ */
 
 export async function listWriting(level: Level): Promise<WritingPrompt[]> {
   const { data, error } = await supabase
     .from("writing_prompts")
-    .select("id, level, prompt, min_words, position, part")
+    .select("id, level, prompt, min_words, position, part, image_path")
     .eq("level", level)
     .order("part", { ascending: true })
     .order("position", { ascending: true });
@@ -1030,6 +1247,7 @@ export interface WritingInput {
   min_words: number;
   position: number;
   part: 1 | 2;
+  image_path?: string | null;
 }
 
 export async function saveWriting(input: WritingInput): Promise<void> {
@@ -1039,6 +1257,7 @@ export async function saveWriting(input: WritingInput): Promise<void> {
     min_words: input.min_words,
     position: input.position,
     part: input.part,
+    image_path: input.image_path?.trim() || null,
   };
   const query = input.id
     ? supabase.from("writing_prompts").update(payload).eq("id", input.id)
@@ -1072,6 +1291,8 @@ export interface SpeakingInput {
   prep_seconds: number;
   max_seconds: number;
   position: number;
+  part: 1 | 2;
+  image_path?: string | null;
 }
 
 export async function saveSpeaking(input: SpeakingInput): Promise<void> {
@@ -1082,6 +1303,8 @@ export async function saveSpeaking(input: SpeakingInput): Promise<void> {
     prep_seconds: input.prep_seconds,
     max_seconds: input.max_seconds,
     position: input.position,
+    part: input.part,
+    image_path: input.image_path?.trim() || null,
   };
   const query = input.id
     ? supabase.from("speaking_prompts").update(payload).eq("id", input.id)
@@ -1158,4 +1381,11 @@ export async function contentStats(): Promise<ContentStats[]> {
   const { data, error } = await supabase.rpc("content_stats");
   if (error) fail(`İçerik istatistikleri yüklenemedi: ${error.message}`);
   return (data ?? []) as ContentStats[];
+}
+
+/** Per-question difficulty and discrimination for a level. */
+export async function questionStats(level: Level): Promise<QuestionStat[]> {
+  const { data, error } = await supabase.rpc("question_stats", { p_level: level });
+  if (error) fail(`Madde analizi yüklenemedi: ${error.message}`);
+  return (data ?? []) as QuestionStat[];
 }

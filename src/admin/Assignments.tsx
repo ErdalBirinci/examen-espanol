@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Eye, EyeOff, Plus, Send, Trash2 } from "lucide-react";
 import {
+  bulkAssignExam,
   deleteAssignment,
   listAllAssignments,
-  saveAssignment,
   setAssignmentResultsVisible,
+  setAssignmentsResultsVisible,
   type AdminAssignment,
 } from "../lib/api";
 import { LEVELS, type Level } from "../lib/types";
@@ -20,6 +21,9 @@ export default function Assignments() {
   const [toDelete, setToDelete] = useState<AdminAssignment | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [visibilityBusy, setVisibilityBusy] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: "",
     level: "A1" as Level,
@@ -34,6 +38,7 @@ export default function Assignments() {
     setLoading(true);
     try {
       setRows(await listAllAssignments());
+      setSelected([]);
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -48,14 +53,32 @@ export default function Assignments() {
 
   async function submit() {
     setError(null);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
-      setError("Aday e-postası geçerli değil.");
+    setNotice(null);
+
+    const emails = Array.from(
+      new Set(
+        form.email
+          .split(/[\s,;]+/)
+          .map((email) => email.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+    const invalid = emails.filter(
+      (email) => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
+    );
+    if (emails.length === 0) {
+      setError("En az bir aday e-postası gir.");
       return;
     }
+    if (invalid.length > 0) {
+      setError(`Geçersiz e-posta: ${invalid.join(", ")}`);
+      return;
+    }
+
     setSaving(true);
     try {
-      await saveAssignment({
-        email: form.email,
+      const count = await bulkAssignExam({
+        emails,
         level: form.level,
         title: form.title,
         note: form.note,
@@ -73,10 +96,44 @@ export default function Assignments() {
         resultsVisible: form.resultsVisible,
       });
       await load();
+      setNotice(`${count} adaya sınav atandı.`);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  }
+
+  function toggleAll() {
+    setSelected((prev) => (prev.length === rows.length ? [] : rows.map((row) => row.id)));
+  }
+
+  async function publishSelected(visible: boolean) {
+    if (selected.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await setAssignmentsResultsVisible(selected, visible);
+      setRows((prev) =>
+        prev.map((row) =>
+          selected.includes(row.id) ? { ...row, results_visible: visible } : row,
+        ),
+      );
+      setNotice(
+        `${selected.length} atamada sonuçlar ${visible ? "yayınlandı" : "gizlendi"}.`,
+      );
+      setSelected([]);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -128,14 +185,22 @@ export default function Assignments() {
         </div>
       )}
 
+      {notice && (
+        <div className="mb-4">
+          <Notice tone="success">{notice}</Notice>
+        </div>
+      )}
+
       <Panel className="mb-5 p-4 sm:p-5">
         <h2 className="text-[13.5px] font-semibold">Yeni sınav ata</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Aday e-postası">
-            <input
-              type="email"
-              className="field"
-              placeholder="lucia@correo.com"
+          <Field
+            label="Aday e-postaları"
+            hint="Birden çok aday için satır veya virgülle ayır."
+          >
+            <textarea
+              className="field min-h-[76px] resize-y"
+              placeholder={"lucia@correo.com\nmarcos@correo.com"}
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
@@ -214,6 +279,9 @@ export default function Assignments() {
         >
           Sınav ata
         </Button>
+        <p className="mt-2 text-[11px] text-faint">
+          Aynı ayarlarla birden çok adaya tek seferde atanır; yinelenen adresler birleştirilir.
+        </p>
       </Panel>
 
       {loading ? (
@@ -227,7 +295,40 @@ export default function Assignments() {
         />
       ) : (
         <Panel className="overflow-hidden">
-          <div className="hidden grid-cols-[1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+            <label className="flex items-center gap-2 text-[12px] text-muted">
+              <input
+                type="checkbox"
+                className="size-3.5"
+                checked={rows.length > 0 && selected.length === rows.length}
+                onChange={toggleAll}
+              />
+              Tümünü seç
+            </label>
+            <span className="text-[11.5px] text-faint">{selected.length} seçili</span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={selected.length === 0}
+                loading={bulkBusy}
+                onClick={() => void publishSelected(true)}
+                icon={<Send className="size-3.5" />}
+              >
+                Sonuçları yayınla
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={selected.length === 0}
+                loading={bulkBusy}
+                onClick={() => void publishSelected(false)}
+                icon={<EyeOff className="size-3.5" />}
+              >
+                Gizle
+              </Button>
+            </div>
+          </div>
+          <div className="hidden grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
+            <span />
             <span>E-posta</span>
             <span>Seviye</span>
             <span>Başlık</span>
@@ -239,8 +340,17 @@ export default function Assignments() {
             {rows.map((row) => (
               <li
                 key={row.id}
-                className="grid gap-2 px-4 py-3 md:grid-cols-[1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] md:items-center"
+                className="grid gap-2 px-4 py-3 md:grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] md:items-center"
               >
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    className="size-3.5"
+                    checked={selected.includes(row.id)}
+                    onChange={() => toggleSelected(row.id)}
+                    aria-label={`${row.email} atamasını seç`}
+                  />
+                </div>
                 <div className="min-w-0">
                   <p className="truncate text-[12.5px] font-medium">{row.email}</p>
                   <p className="text-[11px] text-faint">

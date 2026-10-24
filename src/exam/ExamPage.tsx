@@ -27,9 +27,11 @@ import {
   resumeExamDraft,
   saveExamDraft,
   startExamDraft,
+  recordAttemptIntegrity,
   submitAttempt,
   uploadSpeakingRecording,
 } from "../lib/api";
+import { useExamIntegrity } from "./useExamIntegrity";
 import type { Assignment } from "../lib/api";
 import { LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
 import { errorMessage, formatSeconds, wordCount } from "../lib/utils";
@@ -84,6 +86,10 @@ export default function ExamPage() {
   const [draftCode, setDraftCode] = useState<string | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
+
+  const { focusLosses, snapshot: integritySnapshot } = useExamIntegrity(
+    Boolean(bundle) && stage !== "intro" && stage !== "done",
+  );
 
   const submitRef = useRef(false);
 
@@ -342,6 +348,7 @@ export default function ExamPage() {
         draftToken,
       });
       setAttemptCode(id.slice(0, 8).toUpperCase());
+      void recordAttemptIntegrity(id, integritySnapshot());
       try {
         localStorage.removeItem(draftKey);
         if (sessionKey) localStorage.removeItem(sessionKey);
@@ -370,6 +377,7 @@ export default function ExamPage() {
     draftCode,
     draftToken,
     assignmentId,
+    integritySnapshot,
   ]);
 
   // Time is up: submit whatever has been answered, from any active section.
@@ -515,7 +523,7 @@ export default function ExamPage() {
 
           {stage === "speaking" && (
             <SpeakingStep
-              prompt={bundle.speaking}
+              prompts={bundle.speaking}
               value={recording}
               onChange={setRecording}
               onContinue={() => setStage("review")}
@@ -550,6 +558,13 @@ export default function ExamPage() {
           )}
         </>
       ) : null}
+
+      {focusLosses >= 2 && (
+        <div className="fixed bottom-4 left-1/2 z-50 w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-[#f1e0c5] bg-[#fdf8ef] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-warning shadow-lg">
+          Sekme değişimi algılandı ({focusLosses}). Sınav sırasında bu sayfada kalman beklenir;
+          bu hareket kaydedilir.
+        </div>
+      )}
     </ExamShell>
   );
 }
@@ -623,7 +638,12 @@ function IntroScreen({
       title: "Expresión Escrita",
       detail: bundle ? `${bundle.writing.length} tareas` : "2 tareas",
     },
-    { stage: "speaking", icon: Mic, title: "Expresión oral", detail: "1 grabación" },
+    {
+      stage: "speaking",
+      icon: Mic,
+      title: "Expresión oral",
+      detail: "2 partes · 1 grabación + entrevista",
+    },
   ];
   const selectedSection = sections.find((section) => section.stage === startSection) ?? sections[0];
 
