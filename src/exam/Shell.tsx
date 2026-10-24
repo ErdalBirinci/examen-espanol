@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Check, Clock3 } from "lucide-react";
-import { cn, formatSeconds } from "../lib/utils";
+import { Check } from "lucide-react";
+import { cn } from "../lib/utils";
 import type { Level } from "../lib/types";
 import { Brand } from "../components/Brand";
 
@@ -21,13 +21,11 @@ export const SECTION_STAGES: SectionStage[] = ["test", "listening", "writing", "
 export function ExamShell({
   level,
   activeIndex,
-  remainingSeconds,
   onSelectSection,
   children,
 }: {
   level: Level;
   activeIndex: number;
-  remainingSeconds?: number;
   onSelectSection?: (index: number) => void;
   children: ReactNode;
 }) {
@@ -82,7 +80,6 @@ export function ExamShell({
           </nav>
 
           <div className="flex shrink-0 items-center gap-2.5">
-            {remainingSeconds !== undefined && <ExamTimer seconds={remainingSeconds} />}
             <span className="text-[11px] font-semibold text-muted tabular-nums lg:hidden">
               {Math.min(activeIndex + 1, SECTION_LABELS.length)} / {SECTION_LABELS.length}
             </span>
@@ -119,28 +116,6 @@ export function ExamShell({
 
       <main className="mx-auto max-w-4xl px-5 py-8 pb-24 sm:px-8 sm:py-11">{children}</main>
     </div>
-  );
-}
-
-function ExamTimer({ seconds }: { seconds: number }) {
-  const critical = seconds <= 60;
-  const warning = seconds <= 300;
-  return (
-    <span
-      role="timer"
-      aria-label={`Tiempo restante: ${formatSeconds(seconds)}`}
-      className={cn(
-        "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11.5px] font-semibold tabular-nums shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-md transition-colors",
-        critical
-          ? "border-[#fbdada] bg-[#fdf0f0]/90 text-danger"
-          : warning
-            ? "border-[#f4e6c8] bg-[#fdf8ec]/90 text-warning"
-            : "border-white/85 bg-white/65 text-muted",
-      )}
-    >
-      <Clock3 className={cn("size-3.5", critical && "animate-pulse")} />
-      {formatSeconds(seconds)}
-    </span>
   );
 }
 

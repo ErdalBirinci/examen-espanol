@@ -5,40 +5,28 @@ import {
   ClipboardList,
   Clock,
   Download,
-  Settings2,
   Sparkles,
   Users,
 } from "lucide-react";
-import {
-  contentStats,
-  exportBackup,
-  listAttempts,
-  listExamSettings,
-  saveExamSettings,
-} from "../lib/api";
-import type { Attempt, ContentStats, ExamSettings } from "../lib/types";
+import { contentStats, exportBackup, listAttempts } from "../lib/api";
+import type { Attempt, ContentStats } from "../lib/types";
 import { LEVELS } from "../lib/types";
 import { errorMessage, formatDate } from "../lib/utils";
-import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
+import { Badge, Button, EmptyState, Notice, Spinner } from "../components/ui";
 import { LevelBadge, PageHeader, Panel } from "./shared";
 
 export default function Overview() {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [content, setContent] = useState<ContentStats[]>([]);
-  const [settings, setSettings] = useState<ExamSettings[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
 
   useEffect(() => {
-    Promise.all([listAttempts(), contentStats(), listExamSettings()])
-      .then(([rows, stats, config]) => {
+    Promise.all([listAttempts(), contentStats()])
+      .then(([rows, stats]) => {
         setAttempts(rows);
         setContent(stats);
-        setSettings(config);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -59,20 +47,6 @@ export default function Overview() {
       setError(errorMessage(err));
     } finally {
       setBackupBusy(false);
-    }
-  }
-
-  async function persistSettings() {
-    setSavingSettings(true);
-    setSettingsError(null);
-    try {
-      await saveExamSettings(settings);
-      setSettings(await listExamSettings());
-      setSettingsOpen(false);
-    } catch (err) {
-      setSettingsError(errorMessage(err));
-    } finally {
-      setSavingSettings(false);
     }
   }
 
@@ -121,13 +95,6 @@ export default function Overview() {
         description="Sınavlar, adaylar ve değerlendirme durumunun özeti."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setSettingsOpen(true)}
-              icon={<Settings2 className="size-3.5" />}
-            >
-              Sınav süreleri
-            </Button>
             <Button
               variant="secondary"
               onClick={() => void downloadBackup()}
@@ -301,53 +268,6 @@ export default function Overview() {
         </div>
       </Panel>
 
-      <Modal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        title="Sınav süreleri"
-        description="Her seviye için adayın toplam süresi (dakika). Süre dolunca sınav otomatik gönderilir."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>
-              Vazgeç
-            </Button>
-            <Button onClick={() => void persistSettings()} loading={savingSettings}>
-              Kaydet
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          {settingsError && <Notice tone="danger">{settingsError}</Notice>}
-          <div className="grid gap-3 sm:grid-cols-3">
-            {LEVELS.map((level) => {
-              const row = settings.find((entry) => entry.level === level);
-              return (
-                <Field key={level} label={level} hint="10–240 dk" htmlFor={`duration-${level}`}>
-                  <input
-                    id={`duration-${level}`}
-                    type="number"
-                    min={10}
-                    max={240}
-                    className="field"
-                    value={row?.duration_minutes ?? 60}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      setSettings((prev) => {
-                        const next = prev.filter((entry) => entry.level !== level);
-                        return [
-                          ...next,
-                          { level, duration_minutes: Number.isFinite(value) ? value : 60 },
-                        ].sort((a, b) => a.level.localeCompare(b.level));
-                      });
-                    }}
-                  />
-                </Field>
-              );
-            })}
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

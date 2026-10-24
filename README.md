@@ -26,7 +26,7 @@ The candidate experience is in Spanish. The administration console is in Turkish
 
 - Six CEFR levels: **A1, A2, B1, B2, C1 and C2**.
 - Four independently scored skills: **vocabulary and grammar, listening, writing and speaking**, worth **50 + 10 + 20 + 20 = 100** points.
-- Assignment-based access with per-exam duration, due date and result visibility.
+- Assignment-based access with per-exam result visibility and no time limit for the candidate.
 - Server-side submission, duplicate-submission protection and automatic scoring.
 - Resumable exams through a server-side draft.
 - Result lookup by reference code and email.
@@ -54,11 +54,10 @@ All screenshots below are from the live GitHub Pages deployment.
 ### Candidate experience
 
 - **Open registration.** Anyone can create an account with a name, e-mail and password; the centre assigns exams to that e-mail afterwards.
-- **Personal dashboard.** Candidates see only their own assignments, with level, note, due date and current status.
+- **Personal dashboard.** Candidates see only their own assignments, with level, note and current status.
 - **Flexible section order.** Candidates can move between the four sections freely; answers are preserved per section.
 - **Autosave and resume.** A server-side draft is written while the exam is in progress. The same browser resumes automatically; another device can continue with the draft code and email.
-- **Visible timer.** The remaining time comes from the server-side start timestamp. The last five minutes turn amber and the last minute turns red.
-- **Automatic submission.** When time runs out, the current exam is submitted instead of being lost.
+- **No time limit.** An assignment has no due date or duration; the candidate starts and submits the exam whenever they are ready.
 - **Pre-submit review.** A summary shows which sections are complete and which are still missing before final submission.
 - **Result lookup.** A reference code and email are enough to retrieve the candidate's own result summary.
 - **Downloadable report.** A graded result can be saved as an A4 PDF with the section-by-section breakdown (test, listening, writing part 1 and 2, speaking part 1 and 2).
@@ -68,7 +67,7 @@ All screenshots below are from the live GitHub Pages deployment.
 
 - Correct answers are stored in the private `questions` table. Candidates read only the `questions_public` view, which excludes `correct_index` and explanations.
 - Submission goes through the `submit_attempt` database function, not a direct table insert.
-- The server validates the assignment ID, candidate email, level, due date, answer shapes and file paths before accepting a submission.
+- The server validates the assignment ID, candidate email, level, answer shapes and file paths before accepting a submission.
 - One assignment can produce only one attempt (`attempts.assignment_id` is unique).
 - A two-minute rate limit prevents accidental duplicate submissions from the same email.
 - Test and listening scoring runs in Postgres. Writing and speaking points are entered by an administrator and the total is recalculated server-side.
@@ -97,7 +96,7 @@ The admin console covers the complete exam lifecycle:
 | --- | --- |
 | **Overview** | Exam volume, monthly activity, pending grading, average test score, level distribution, content completeness matrix and JSON backup |
 | **Users** | Registered candidate accounts with lifecycle detail, date-range and activity-type filters, assignment/submission/draft history, account disable and re-enable, password reset, session revocation and full account deletion |
-| **Candidate exams** | Create assignments for one or many e-mails (level, title, note, due date, duration, result visibility), then publish or hide results in bulk |
+| **Candidate exams** | Create assignments for one or many e-mails (level, title, note, result visibility), then publish or hide results in bulk |
 | **Exam results** | Review test answers, listening answers, both writing parts and the part 1 speaking recording; the listening score is calculated from the keyed answers, writing (0–10 + 0–10) and speaking (0–10 + 0–10) are scored by the administrator with optional rubrics; a grading queue, audit trail and CSV export are built in; publish results and trigger result emails |
 | **Test questions** | Level-scoped multiple-choice CRUD with four options, correct answer and ordering |
 | **Answer key** | One-page answer key per level with the correct option, answer text and grading note; printable and downloadable as CSV |
@@ -153,7 +152,7 @@ JSON format:
 1. The candidate creates an account with a name, e-mail and password. No assignment is needed at that point.
 2. An administrator creates listening, writing and speaking content and assigns an exam to the candidate e-mail; the exam then appears in the candidate's panel.
 3. The candidate signs in, opens the assigned exam and receives a server-backed draft.
-4. Answers are saved to the draft while the timer runs from the server's `started_at` timestamp.
+4. Answers are saved to the draft as the candidate works, with no time limit.
 5. Final submission validates the assignment and writes a locked attempt. Test and listening answers are scored immediately (1 point per question); both writing parts and both speaking parts wait for manual grading.
 6. The administrator reviews the attempt, enters section scores and publishes the result when ready.
 7. The candidate can look up the result and download a participation document with a public verification code.
@@ -173,7 +172,7 @@ The random question set is fixed for each draft: the 50 question IDs and the lis
 
 ### Timing
 
-Each assignment can define its own duration. If no duration is provided, the level default from `exam_settings` applies (45–90 minutes in the sample configuration). The timer is anchored to the server-side draft start, so refreshing the page or switching devices does not reset it.
+Assignments carry no due date and no duration. The candidate can start, leave and resume an exam at any time and decides when to submit it; only a completed submission is final.
 
 ### Participation document
 
@@ -241,6 +240,7 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261109_open_registration.sql`](supabase/migrations/20261109_open_registration.sql)
    - [`20261110_legacy_email_check_stub.sql`](supabase/migrations/20261110_legacy_email_check_stub.sql) — constant stub so frontends built before open registration keep working; it can be dropped once the current build is deployed.
    - [`20261111_listening_order.sql`](supabase/migrations/20261111_listening_order.sql) — listening questions keep the administrator's `position` order in the draft and in the exam bundle.
+   - [`20261112_assign_without_schedule.sql`](supabase/migrations/20261112_assign_without_schedule.sql) — assignments go through the `admin_assign_exams` function (fixes the RLS insert error) and no longer carry a due date or duration.
 
    The migrations are idempotent and safe to run again. After applying them, run `npm run verify:db` (reads only the public anon key). It checks the RPCs, audit tables and rubric columns, and also probes the public security surface: practice-mode answer keys, anonymous writes to `attempts`, draft ownership, admin RPC permissions, table RLS and storage bucket access.
 4. Create the administrator account in **Authentication → Users → Add user**:

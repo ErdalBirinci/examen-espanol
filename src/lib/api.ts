@@ -492,39 +492,18 @@ export async function listAllAssignments(): Promise<AdminAssignment[]> {
   return (data ?? []) as unknown as AdminAssignment[];
 }
 
-export async function saveAssignment(input: {
-  email: string;
-  level: Level;
-  title: string;
-  note: string;
-  dueAt: string | null;
-  durationMinutes: number | null;
-  resultsVisible: boolean;
-}): Promise<void> {
-  const { error } = await supabase.from("exam_assignments").insert({
-    email: input.email.trim().toLowerCase(),
-    level: input.level,
-    title: input.title.trim() || null,
-    note: input.note.trim() || null,
-    due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
-    duration_minutes: input.durationMinutes,
-    results_visible: input.resultsVisible,
-    created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-  });
-  if (error) fail(`Sınav atanamadı: ${error.message}`);
-}
-
 export interface BulkAssignmentInput {
   emails: string[];
   level: Level;
   title: string;
   note: string;
-  dueAt: string | null;
-  durationMinutes: number | null;
   resultsVisible: boolean;
 }
 
-/** Aynı ayarlarla birden çok adaya tek istekte sınav atar. */
+/**
+ * Aynı ayarlarla birden çok adaya tek istekte sınav atar. Yazma işlemi
+ * veritabanındaki yetkiyi kendi içinde doğrulayan bir fonksiyonla yapılır.
+ */
 export async function bulkAssignExam(input: BulkAssignmentInput): Promise<number> {
   const emails = Array.from(
     new Set(
@@ -535,21 +514,28 @@ export async function bulkAssignExam(input: BulkAssignmentInput): Promise<number
   );
   if (emails.length === 0) fail("Geçerli bir e-posta adresi bulunamadı.");
 
-  const { data: session } = await supabase.auth.getUser();
-  const { error } = await supabase.from("exam_assignments").insert(
-    emails.map((email) => ({
-      email,
-      level: input.level,
-      title: input.title.trim() || null,
-      note: input.note.trim() || null,
-      due_at: input.dueAt ? new Date(input.dueAt).toISOString() : null,
-      duration_minutes: input.durationMinutes,
-      results_visible: input.resultsVisible,
-      created_by: session.user?.id ?? null,
-    })),
-  );
-  if (error) fail(`Toplu atama yapılamadı: ${error.message}`);
-  return emails.length;
+  const { data, error } = await supabase.rpc("admin_assign_exams", {
+    p_emails: emails,
+    p_level: input.level,
+    p_title: input.title.trim() || null,
+    p_note: input.note.trim() || null,
+    p_results_visible: input.resultsVisible,
+  });
+  if (error) {
+    if (error.message.includes("UNAUTHORIZED")) {
+      fail(
+        "Sınav atamak için yönetici yetkisi gerekiyor. Oturumu kapatıp yönetici hesabıyla yeniden giriş yap.",
+      );
+    }
+    if (error.message.includes("NO_EMAILS") || error.message.includes("INVALID_LEVEL")) {
+      fail("Geçerli bir e-posta adresi ve seviye gir.");
+    }
+    if (error.message.includes("admin_assign_exams")) {
+      fail("Atama işlevi bulunamadı: 20261112 migration'ı veritabanına uygulanmalı.");
+    }
+    fail(`Toplu atama yapılamadı: ${error.message}`);
+  }
+  return Number(data ?? emails.length);
 }
 
 /** Seçili atamaların sonuç görünürlüğünü tek işlemde değiştirir. */

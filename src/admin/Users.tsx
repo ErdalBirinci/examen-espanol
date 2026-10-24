@@ -861,8 +861,6 @@ export default function Users() {
                               )}
                               <p className="mt-1.5 text-[11px] text-faint">
                                 Atandı {formatDate(assignment.created_at)}
-                                {assignment.due_at && ` · Son tarih ${formatDate(assignment.due_at)}`}
-                                {assignment.duration_minutes && ` · ${assignment.duration_minutes} dk`}
                               </p>
                             </div>
                             <Badge tone={attemptStatusTone(assignment.attempt_status)}>

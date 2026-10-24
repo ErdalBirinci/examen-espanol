@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, Eye, EyeOff, Plus, Send, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Plus, Send, Trash2 } from "lucide-react";
 import {
   bulkAssignExam,
   deleteAssignment,
@@ -29,8 +29,6 @@ export default function Assignments() {
     level: "A1" as Level,
     title: "",
     note: "",
-    dueAt: "",
-    duration: "",
     resultsVisible: true,
   });
 
@@ -82,8 +80,6 @@ export default function Assignments() {
         level: form.level,
         title: form.title,
         note: form.note,
-        dueAt: form.dueAt || null,
-        durationMinutes: form.duration ? Number(form.duration) : null,
         resultsVisible: form.resultsVisible,
       });
       setForm({
@@ -91,8 +87,6 @@ export default function Assignments() {
         level: form.level,
         title: "",
         note: "",
-        dueAt: "",
-        duration: form.duration,
         resultsVisible: form.resultsVisible,
       });
       await load();
@@ -193,7 +187,7 @@ export default function Assignments() {
 
       <Panel className="mb-5 p-4 sm:p-5">
         <h2 className="text-[13.5px] font-semibold">Yeni sınav ata</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field
             label="Aday e-postaları"
             hint="Birden çok aday için satır veya virgülle ayır."
@@ -226,28 +220,9 @@ export default function Assignments() {
               onChange={(event) => setForm({ ...form, title: event.target.value })}
             />
           </Field>
-          <Field label="Son tarih (opsiyonel)">
-            <input
-              type="datetime-local"
-              className="field"
-              value={form.dueAt}
-              onChange={(event) => setForm({ ...form, dueAt: event.target.value })}
-            />
-          </Field>
         </div>
 
-        <div className="mt-3 grid items-end gap-3 sm:grid-cols-[180px_1fr]">
-          <Field label="Sınav süresi (dk)" hint="Boş = seviye varsayılanı.">
-            <input
-              type="number"
-              min={10}
-              max={240}
-              className="field"
-              placeholder="Varsayılan"
-              value={form.duration}
-              onChange={(event) => setForm({ ...form, duration: event.target.value })}
-            />
-          </Field>
+        <div className="mt-3 grid items-end gap-3 sm:grid-cols-[1fr]">
           <label className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-[12.5px] font-medium">
             <input
               type="checkbox"
@@ -327,12 +302,11 @@ export default function Assignments() {
               </Button>
             </div>
           </div>
-          <div className="hidden grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
+          <div className="hidden grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_auto] gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[10.5px] font-semibold tracking-[0.06em] text-faint uppercase md:grid">
             <span />
             <span>E-posta</span>
             <span>Seviye</span>
             <span>Başlık</span>
-            <span>Son tarih</span>
             <span>Durum</span>
             <span />
           </div>
@@ -340,7 +314,7 @@ export default function Assignments() {
             {rows.map((row) => (
               <li
                 key={row.id}
-                className="grid gap-2 px-4 py-3 md:grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_0.8fr_auto] md:items-center"
+                className="grid gap-2 px-4 py-3 md:grid-cols-[auto_1.5fr_0.5fr_1fr_0.8fr_auto] md:items-center"
               >
                 <div className="flex items-center">
                   <input
@@ -365,13 +339,9 @@ export default function Assignments() {
                     {row.title || `Examen ${row.level}`}
                   </p>
                   <p className="text-[11px] text-faint">
-                    {row.duration_minutes ? `${row.duration_minutes} dk` : "Varsayılan süre"}
-                    {!row.results_visible && " · sonuçlar gizli"}
+                    {row.results_visible ? "Sonuçlar görünür" : "Sonuçlar gizli"}
                   </p>
                 </div>
-                <p className="text-[11.5px] text-muted">
-                  {row.due_at ? new Date(row.due_at).toLocaleString("tr-TR") : "—"}
-                </p>
                 <div>
                   <Badge tone={row.attempts?.length ? "success" : "warning"}>
                     {row.attempts?.length
@@ -415,13 +385,10 @@ export default function Assignments() {
         </Panel>
       )}
 
-      {rows.length > 0 && (
-        <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-faint">
-          <CalendarClock className="size-3.5" />
-          Son tarihi geçen atamalar aday tarafından gönderilemez. Göz simgesiyle sonuçların adaya
-          görünürlüğünü sonradan açıp kapatabilirsin.
-        </p>
-      )}
+      <p className="mt-3 text-[11.5px] text-faint">
+        Sınavlarda son tarih veya süre sınırı yoktur; aday sınavı istediği zaman tamamlayabilir.
+        Göz simgesiyle sonuçların adaya görünürlüğünü sonradan açıp kapatabilirsin.
+      </p>
 
       <ConfirmDialog
         open={Boolean(toDelete)}

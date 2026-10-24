@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
-  CalendarClock,
   CheckCircle2,
   ClipboardList,
   LogOut,
@@ -227,19 +226,11 @@ export default function CandidatePortal() {
                               {item.title || `Examen de nivel ${item.level}`}
                             </h3>
                             <p className="mt-1 text-[11.5px] text-muted">
-                              {LEVEL_INFO[item.level]?.name} ·{" "}
-                              {item.duration_minutes ? `${item.duration_minutes} min` : "Duración estándar"} ·{" "}
-                              Asignado el {formatDate(item.created_at)}
+                              {LEVEL_INFO[item.level]?.name} · Asignado el {formatDate(item.created_at)}
                             </p>
                             {item.note && (
                               <p className="mt-2 max-w-2xl rounded-lg border border-white/70 bg-white/45 px-2.5 py-1.5 text-[11.5px] leading-relaxed text-muted">
                                 {item.note}
-                              </p>
-                            )}
-                            {item.due_at && (
-                              <p className="mt-2 flex items-center gap-1 text-[11px] font-medium text-warning">
-                                <CalendarClock className="size-3.5" />
-                                Fecha límite: {formatDate(item.due_at)}
                               </p>
                             )}
                           </div>

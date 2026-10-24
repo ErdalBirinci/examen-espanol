@@ -3,7 +3,6 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   CheckCircle2,
-  Clock3,
   Headphones,
   ListChecks,
   Mic,
@@ -34,7 +33,7 @@ import {
 import { useExamIntegrity } from "./useExamIntegrity";
 import type { Assignment } from "../lib/api";
 import { LEVEL_INFO, type Candidate, type ExamBundle, type Level } from "../lib/types";
-import { errorMessage, formatSeconds, wordCount } from "../lib/utils";
+import { errorMessage, wordCount } from "../lib/utils";
 
 type Stage = "intro" | "test" | "listening" | "writing" | "speaking" | "review" | "done";
 
@@ -77,7 +76,6 @@ export default function ExamPage() {
   const [writing2, setWriting2] = useState("");
   const [recording, setRecording] = useState<RecordingPayload | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -230,19 +228,6 @@ export default function ExamPage() {
     return () => window.clearTimeout(timer);
   }, [draftToken, hydrated, startedAt, stage, mcAnswers, listeningAnswers, writing, writing2]);
 
-  const durationMinutes =
-    assignment?.duration_minutes ?? bundle?.settings.duration_minutes ?? 60;
-  const endsAt = startedAt ? startedAt + durationMinutes * 60_000 : null;
-  const remainingSeconds = endsAt ? Math.max(0, Math.ceil((endsAt - now) / 1000)) : null;
-  const expired = remainingSeconds !== null && remainingSeconds <= 0;
-
-  useEffect(() => {
-    if (!startedAt || stage === "done") return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [startedAt, stage]);
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stage]);
@@ -266,7 +251,7 @@ export default function ExamPage() {
   }
 
   async function beginExam(section: SectionStage) {
-    if (expired || !candidate || !level || !assignmentId || draftBusy) return;
+    if (!candidate || !level || !assignmentId || draftBusy) return;
     setDraftBusy(true);
     setSubmitError(null);
     try {
@@ -380,13 +365,6 @@ export default function ExamPage() {
     integritySnapshot,
   ]);
 
-  // Time is up: submit whatever has been answered, from any active section.
-  useEffect(() => {
-    if (stage === "intro" || stage === "done") return;
-    if (!expired) return;
-    void handleSubmit();
-  }, [expired, stage, handleSubmit]);
-
   if (accessLoading) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-muted">
@@ -435,9 +413,6 @@ export default function ExamPage() {
         bundle={bundle}
         loading={loading}
         error={loadError}
-        remainingSeconds={remainingSeconds}
-        expired={expired}
-        submitting={submitting}
         submitError={submitError}
         draftBusy={draftBusy}
         resumeError={resumeError}
@@ -449,7 +424,6 @@ export default function ExamPage() {
         }}
         onStart={() => void beginExam(startSection)}
         onResume={(code, email) => void handleResume(code, email, startSection)}
-        onSubmit={() => void handleSubmit()}
       />
     );
   }
@@ -458,7 +432,6 @@ export default function ExamPage() {
     <ExamShell
       level={level}
       activeIndex={activeIndex}
-      remainingSeconds={remainingSeconds ?? undefined}
       onSelectSection={(index) => setStage(SECTION_STAGES[index])}
     >
       {loading && !bundle ? (
@@ -575,9 +548,6 @@ function IntroScreen({
   bundle,
   loading,
   error,
-  remainingSeconds,
-  expired,
-  submitting,
   submitError,
   draftBusy,
   resumeError,
@@ -587,16 +557,12 @@ function IntroScreen({
   onRetry,
   onStart,
   onResume,
-  onSubmit,
 }: {
   candidate: Candidate;
   level: Level;
   bundle: ExamBundle | null;
   loading: boolean;
   error: string | null;
-  remainingSeconds: number | null;
-  expired: boolean;
-  submitting: boolean;
   submitError: string | null;
   draftBusy: boolean;
   resumeError: string | null;
@@ -606,7 +572,6 @@ function IntroScreen({
   onRetry: () => void;
   onStart: () => void;
   onResume: (code: string, email: string) => void;
-  onSubmit: () => void;
 }) {
   const info = LEVEL_INFO[level];
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -654,18 +619,6 @@ function IntroScreen({
           <p className="text-[11.5px] font-semibold tracking-[0.12em] text-faint uppercase">
             Nivel {level} · {info.name}
           </p>
-          {remainingSeconds !== null && (
-            <div
-              className={
-                expired
-                  ? "flex items-center gap-1.5 rounded-full bg-[#fdf0f0] px-3 py-1 text-[12px] font-semibold text-danger tabular-nums"
-                  : "flex items-center gap-1.5 rounded-full bg-[#f2f2f5] px-3 py-1 text-[12px] font-medium text-muted tabular-nums"
-              }
-            >
-              <Clock3 className="size-3.5" />
-              {expired ? "Tiempo agotado" : `${formatSeconds(remainingSeconds)} restantes`}
-            </div>
-          )}
         </div>
         <h1 className="mt-3 text-[34px] leading-[1.04] font-semibold tracking-[-0.045em] sm:text-[48px]">
           Hola, <span className="font-display font-normal italic text-gradient-blue">{candidate.firstName}</span>.
@@ -728,14 +681,6 @@ function IntroScreen({
             <Notice tone="danger">{error}</Notice>
           </div>
         )}
-        {expired && (
-          <div className="mt-6">
-            <Notice tone="warning">
-              El tiempo del examen ha terminado. Puedes enviar lo que llevas respondido; las
-              secciones incompletas puntuarán como cero.
-            </Notice>
-          </div>
-        )}
         {submitError && (
           <div className="mt-6">
             <Notice tone="danger">{submitError}</Notice>
@@ -751,22 +696,11 @@ function IntroScreen({
         )}
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          {expired ? (
-            <Button
-              size="lg"
-              onClick={onSubmit}
-              loading={submitting}
-              icon={<ArrowRight className="size-4" />}
-            >
-              Enviar examen
-            </Button>
-          ) : (
-            <Button size="lg" onClick={onStart} disabled={loading} icon={<ArrowRight className="size-4" />}>
-              {loading
-                ? "Preparando el examen…"
-                : `Comenzar por ${selectedSection.title}`}
-            </Button>
-          )}
+          <Button size="lg" onClick={onStart} disabled={loading} icon={<ArrowRight className="size-4" />}>
+            {loading
+              ? "Preparando el examen…"
+              : `Comenzar por ${selectedSection.title}`}
+          </Button>
           {error && (
             <Button variant="secondary" size="lg" onClick={onRetry} icon={<RotateCcw className="size-4" />}>
               Reintentar
@@ -782,11 +716,9 @@ function IntroScreen({
         )}
 
         <div className="mt-5">
-          {remainingSeconds === null && (
           <p className="mt-3 text-[11.5px] text-faint">
             Puedes cambiar de sección en cualquier momento desde la cabecera del examen.
           </p>
-        )}
 
         {!resumeOpen ? (
             <button
