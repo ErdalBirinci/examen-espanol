@@ -220,7 +220,7 @@ export default function Welcome() {
                 <Check className="size-3.5 text-success" /> Progreso guardado
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Check className="size-3.5 text-success" /> Tiempo adaptado al nivel
+                <Check className="size-3.5 text-success" /> Sin límite de tiempo
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Check className="size-3.5 text-success" /> Constancia de participación
