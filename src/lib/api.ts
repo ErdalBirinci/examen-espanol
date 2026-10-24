@@ -500,9 +500,24 @@ export interface BulkAssignmentInput {
   resultsVisible: boolean;
 }
 
+function isMissingFunction(error: { code?: string | null; message?: string | null } | null): boolean {
+  return (
+    error?.code === "PGRST202" ||
+    /could not find the function/i.test(error?.message ?? "")
+  );
+}
+
+function dbDetail(error: { code?: string | null; message?: string | null; details?: string | null }) {
+  return [error.message, error.details].filter(Boolean).join(" · ") || "bilinmeyen hata";
+}
+
 /**
- * Aynı ayarlarla birden çok adaya tek istekte sınav atar. Yazma işlemi
- * veritabanındaki yetkiyi kendi içinde doğrulayan bir fonksiyonla yapılır.
+ * Aynı ayarlarla birden çok adaya sınav atar.
+ *
+ * Önce sunucudaki atama fonksiyonu denenir (yetkiyi kendi içinde doğrular).
+ * Fonksiyon veritabanında yoksa, yönetici oturumunun tablo politikasıyla
+ * doğrudan yazmasına düşülür; böylece atama akışı ek SQL kurulumuna
+ * bağlı kalmadan da çalışır.
  */
 export async function bulkAssignExam(input: BulkAssignmentInput): Promise<number> {
   const emails = Array.from(
@@ -514,28 +529,65 @@ export async function bulkAssignExam(input: BulkAssignmentInput): Promise<number
   );
   if (emails.length === 0) fail("Geçerli bir e-posta adresi bulunamadı.");
 
+  // Yazma isteği oturumsuz gitmesin: tablo politikaları yöneticiyi oturumdan okur.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    fail("Oturumun sona ermiş. Yeniden giriş yapıp sınavı tekrar ata.");
+  }
+  const { data: userData } = await supabase.auth.getUser();
+  const adminId = userData.user?.id ?? null;
+
+  const title = input.title.trim() || null;
+  const note = input.note.trim() || null;
+
   const { data, error } = await supabase.rpc("admin_assign_exams", {
     p_emails: emails,
     p_level: input.level,
-    p_title: input.title.trim() || null,
-    p_note: input.note.trim() || null,
+    p_title: title,
+    p_note: note,
     p_results_visible: input.resultsVisible,
   });
-  if (error) {
-    if (error.message.includes("UNAUTHORIZED")) {
+  if (!error) return Number(data ?? emails.length);
+
+  if (!isMissingFunction(error)) {
+    const raw = dbDetail(error);
+    if (raw.includes("UNAUTHORIZED")) {
       fail(
         "Sınav atamak için yönetici yetkisi gerekiyor. Oturumu kapatıp yönetici hesabıyla yeniden giriş yap.",
       );
     }
-    if (error.message.includes("NO_EMAILS") || error.message.includes("INVALID_LEVEL")) {
+    if (raw.includes("NO_EMAILS") || raw.includes("INVALID_LEVEL")) {
       fail("Geçerli bir e-posta adresi ve seviye gir.");
     }
-    if (error.message.includes("admin_assign_exams")) {
-      fail("Atama işlevi bulunamadı: 20261112 migration'ı veritabanına uygulanmalı.");
-    }
-    fail(`Toplu atama yapılamadı: ${error.message}`);
+    fail(`Toplu atama yapılamadı: ${raw}`);
   }
-  return Number(data ?? emails.length);
+
+  const rows = emails.map((email) => ({
+    email,
+    level: input.level,
+    title,
+    note,
+    due_at: null,
+    duration_minutes: null,
+    results_visible: input.resultsVisible,
+    created_by: adminId,
+  }));
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("exam_assignments")
+    .insert(rows)
+    .select("id");
+  if (insertError) {
+    const raw = dbDetail(insertError);
+    if (/row-level security|permission denied/i.test(raw)) {
+      fail(
+        "Atama yazılamadı: veritabanı yönetici yazma iznini reddetti (RLS). Yönetici oturumuyla giriş yaptığından emin ol; sorun sürerse 20261112_assign_without_schedule.sql dosyasını Supabase SQL Editor'de çalıştır. Ayrıntı: " +
+          raw,
+      );
+    }
+    fail(`Toplu atama yapılamadı: ${raw}`);
+  }
+  return inserted?.length ?? emails.length;
 }
 
 /** Seçili atamaların sonuç görünürlüğünü tek işlemde değiştirir. */
