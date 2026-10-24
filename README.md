@@ -240,6 +240,7 @@ The anon key is designed to be public and is constrained by RLS. **Never put a `
    - [`20261108_result_speaking_parts.sql`](supabase/migrations/20261108_result_speaking_parts.sql)
    - [`20261109_open_registration.sql`](supabase/migrations/20261109_open_registration.sql)
    - [`20261110_legacy_email_check_stub.sql`](supabase/migrations/20261110_legacy_email_check_stub.sql) — constant stub so frontends built before open registration keep working; it can be dropped once the current build is deployed.
+   - [`20261111_listening_order.sql`](supabase/migrations/20261111_listening_order.sql) — listening questions keep the administrator's `position` order in the draft and in the exam bundle.
 
    The migrations are idempotent and safe to run again. After applying them, run `npm run verify:db` (reads only the public anon key). It checks the RPCs, audit tables and rubric columns, and also probes the public security surface: practice-mode answer keys, anonymous writes to `attempts`, draft ownership, admin RPC permissions, table RLS and storage bucket access.
 4. Create the administrator account in **Authentication → Users → Add user**:
