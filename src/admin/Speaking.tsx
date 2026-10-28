@@ -5,6 +5,7 @@ import type { Level, SpeakingPrompt } from "../lib/types";
 import { errorMessage, formatSeconds } from "../lib/utils";
 import { Button, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
+import CandidateAnswers from "./CandidateAnswers";
 
 interface Slot {
   part: 1 | 2;
@@ -211,6 +212,8 @@ export default function Speaking() {
           })}
         </div>
       )}
+
+      <CandidateAnswers level={level} section="speaking" />
 
       <Modal
         open={open}

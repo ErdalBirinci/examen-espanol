@@ -14,6 +14,7 @@ import type { Level, ListeningItem, ListeningQuestionAdmin } from "../lib/types"
 import { errorMessage, formatBytes } from "../lib/utils";
 import { Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelTabs, PageHeader, Panel } from "./shared";
+import CandidateAnswers from "./CandidateAnswers";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -609,6 +610,8 @@ export default function Listening() {
           </Field>
         </div>
       </Modal>
+
+      <CandidateAnswers level={level} section="listening" />
 
       <ConfirmDialog
         open={Boolean(toDelete)}
