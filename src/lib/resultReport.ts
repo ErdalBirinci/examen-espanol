@@ -1,5 +1,6 @@
+import { drawAnswerSheetPages, type AnswerSheet } from "./answerReport";
 import { certificateGrade } from "./certificate";
-import { buildPdfFromJpeg, canvasToJpeg } from "./pdf";
+import { buildPdfFromJpegs, canvasToJpeg, type PdfImagePage } from "./pdf";
 import { resultBreakdown } from "./scoring";
 import type { AttemptResult } from "./types";
 
@@ -46,7 +47,19 @@ export function resultReportFileName(result: AttemptResult): string {
   return `informe-resultados-${result.level.toLowerCase()}-${reference}.pdf`;
 }
 
-export async function downloadResultReport(result: AttemptResult): Promise<void> {
+export interface ResultReportOptions {
+  /**
+   * Question-by-question answer sheets appended after the summary page. The
+   * administration console passes the test and listening sheets so a single
+   * document carries both the scores and the marked answers.
+   */
+  sheets?: AnswerSheet[];
+}
+
+export async function downloadResultReport(
+  result: AttemptResult,
+  options: ResultReportOptions = {},
+): Promise<void> {
   if (result.total_score === null) {
     throw new Error("El informe estará disponible cuando el examen esté evaluado.");
   }
@@ -57,11 +70,33 @@ export async function downloadResultReport(result: AttemptResult): Promise<void>
     // A missing webfont should not block the report.
   }
 
-  const canvas = document.createElement("canvas");
-  drawResultReport(canvas, result);
-  const jpeg = await canvasToJpeg(canvas, 0.94);
-  const blob = buildPdfFromJpeg(jpeg, WIDTH, HEIGHT, PAGE_WIDTH, PAGE_HEIGHT);
-  saveBlob(blob, resultReportFileName(result));
+  const summary = document.createElement("canvas");
+  drawResultReport(summary, result);
+
+  const answerPages = drawAnswerSheetPages(
+    {
+      title: "Detalle de respuestas",
+      reference: result.reference,
+      candidate: result.full_name,
+      level: result.level,
+      submittedAt: result.submitted_at,
+    },
+    (options.sheets ?? []).filter((sheet) => sheet.rows.length > 0),
+  );
+
+  const pages: PdfImagePage[] = [];
+  for (const canvas of [summary, ...answerPages]) {
+    pages.push({
+      jpeg: await canvasToJpeg(canvas, canvas === summary ? 0.94 : 0.9),
+      width: canvas.width,
+      height: canvas.height,
+    });
+  }
+
+  saveBlob(
+    buildPdfFromJpegs(pages, PAGE_WIDTH, PAGE_HEIGHT),
+    resultReportFileName(result),
+  );
 }
 
 function saveBlob(blob: Blob, filename: string) {

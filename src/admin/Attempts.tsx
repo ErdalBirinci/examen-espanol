@@ -28,6 +28,14 @@ import {
 import { cn, errorMessage, formatDate, formatSeconds } from "../lib/utils";
 import { attemptToResult, attemptTotal } from "../lib/scoring";
 import { downloadResultReport } from "../lib/resultReport";
+import {
+  answerSheetFileName,
+  downloadAnswerSheet,
+  listeningAnswerRows,
+  listeningSheet,
+  testAnswerRows,
+  testSheet,
+} from "../lib/answerReport";
 import { attemptsCsvFileName, attemptsToCsv } from "../lib/attemptExport";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelBadge, PageHeader, Panel } from "./shared";
@@ -412,6 +420,7 @@ function AttemptDetail({
   const [audit, setAudit] = useState<GradingAuditEntry[]>([]);
   const [rubric, setRubric] = useState(() => initialRubric(attempt));
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfSection, setPdfSection] = useState<"test" | "listening" | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -547,11 +556,46 @@ function AttemptDetail({
     setPdfBusy(true);
     setPdfError(null);
     try {
-      await downloadResultReport(attemptToResult(attempt));
+      const testRows = testAnswerRows(attempt, questions);
+      const listeningRows = listeningAnswerRows(attempt, listeningQuestions);
+      await downloadResultReport(attemptToResult(attempt), {
+        sheets: [
+          ...(testRows.length > 0 ? [testSheet(attempt, testRows)] : []),
+          ...(listeningRows.length > 0 ? [listeningSheet(attempt, listeningRows)] : []),
+        ],
+      });
     } catch (err) {
       setPdfError(errorMessage(err));
     } finally {
       setPdfBusy(false);
+    }
+  }
+
+  /** Single-section answer sheet, for sending one part at a time. */
+  async function downloadSectionPdf(section: "test" | "listening") {
+    setPdfSection(section);
+    setPdfError(null);
+    try {
+      const rows =
+        section === "test"
+          ? testAnswerRows(attempt, questions)
+          : listeningAnswerRows(attempt, listeningQuestions);
+      const sheet = section === "test" ? testSheet(attempt, rows) : listeningSheet(attempt, rows);
+      await downloadAnswerSheet(
+        {
+          title: "Boletín de respuestas",
+          reference: attempt.id.slice(0, 8).toUpperCase(),
+          candidate: attempt.full_name,
+          level: attempt.level,
+          submittedAt: attempt.submitted_at,
+        },
+        [sheet],
+        answerSheetFileName(section === "test" ? "respuestas-test" : "respuestas-dinleme", attempt),
+      );
+    } catch (err) {
+      setPdfError(errorMessage(err));
+    } finally {
+      setPdfSection(null);
     }
   }
 
@@ -730,13 +774,27 @@ function AttemptDetail({
         </p>
 
         <Card title="Test cevapları" action={
-          <button
-            onClick={() => setShowAnswers((value) => !value)}
-            className="flex items-center gap-1 text-[11.5px] font-medium text-accent-ink"
-          >
-            {showAnswers ? "Gizle" : "Cevapları gör"}
-            <ChevronDown className={cn("size-3.5 transition", showAnswers && "rotate-180")} />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void downloadSectionPdf("test")}
+              disabled={questions.length === 0 || pdfSection !== null}
+              className="flex items-center gap-1 text-[11.5px] font-medium text-accent-ink disabled:opacity-40"
+            >
+              {pdfSection === "test" ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <FileDown className="size-3.5" />
+              )}
+              Sonuç PDF'i
+            </button>
+            <button
+              onClick={() => setShowAnswers((value) => !value)}
+              className="flex items-center gap-1 text-[11.5px] font-medium text-accent-ink"
+            >
+              {showAnswers ? "Gizle" : "Cevapları gör"}
+              <ChevronDown className={cn("size-3.5 transition", showAnswers && "rotate-180")} />
+            </button>
+          </div>
         }>
           {showAnswers ? (
             questions.length === 0 ? (
@@ -785,7 +843,25 @@ function AttemptDetail({
           )}
         </Card>
 
-        <Card title="Dinleme cevapları">
+        <Card
+          title="Dinleme cevapları"
+          action={
+            attempt.scoring_version >= 2 && listeningQuestions.length > 0 ? (
+              <button
+                onClick={() => void downloadSectionPdf("listening")}
+                disabled={pdfSection !== null}
+                className="flex items-center gap-1 text-[11.5px] font-medium text-accent-ink disabled:opacity-40"
+              >
+                {pdfSection === "listening" ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <FileDown className="size-3.5" />
+                )}
+                Sonuç PDF'i
+              </button>
+            ) : null
+          }
+        >
           {attempt.scoring_version >= 2 ? (
             listeningQuestions.length === 0 ? (
               <p className="text-[12px] text-faint">Bu sınavda dinleme sorusu bulunmuyor.</p>
