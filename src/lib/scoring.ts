@@ -68,6 +68,34 @@ export interface ResultRow {
 }
 
 /**
+ * Yönetici ekranındaki bir kaydı, adayın gördüğü PDF raporunun verisine çevirir.
+ * Referans, sonuç sorgusundaki kodla aynıdır: kayıt kimliğinin ilk 8 karakteri.
+ */
+export function attemptToResult(attempt: Attempt): AttemptResult {
+  return {
+    reference: attempt.id.slice(0, 8).toUpperCase(),
+    full_name: attempt.full_name,
+    level: attempt.level,
+    status: attempt.status,
+    submitted_at: attempt.submitted_at,
+    scoring_version: attempt.scoring_version,
+    mc_correct: attempt.mc_correct,
+    mc_total: attempt.mc_total,
+    mc_score: attempt.mc_score,
+    listening_score: attempt.listening_score,
+    listening_correct: attempt.listening_correct,
+    listening_total: attempt.listening_total,
+    writing_score: attempt.writing_score,
+    writing_part1_score: attempt.writing_part1_score,
+    writing_part2_score: attempt.writing_part2_score,
+    speaking_part1_score: attempt.speaking_part1_score,
+    speaking_part2_score: attempt.speaking_part2_score,
+    speaking_score: attempt.speaking_score,
+    total_score: attemptTotal(attempt),
+  };
+}
+
+/**
  * Section-by-section view of a published result. New attempts are shown on the
  * 50 + 10 + 20 + 20 scale, older ones keep their 0–100 section scores.
  */

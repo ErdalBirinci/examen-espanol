@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attemptTotal, resultBreakdown, testPercent, testScore } from "./scoring";
+import { attemptToResult, attemptTotal, resultBreakdown, testPercent, testScore } from "./scoring";
 import type { Attempt, AttemptResult } from "./types";
 
 function attempt(overrides: Partial<Attempt> = {}): Attempt {
@@ -73,6 +73,21 @@ describe("attemptTotal", () => {
     });
     expect(testPercent(legacy)).toBe(80);
     expect(attemptTotal(legacy)).toBe(68);
+  });
+});
+
+describe("attemptToResult", () => {
+  it("reuses the result reference and total the candidate sees", () => {
+    const result = attemptToResult(
+      attempt({ id: "ab12cd34-0000-0000-0000-000000000000" }),
+    );
+    expect(result.reference).toBe("AB12CD34");
+    expect(result.total_score).toBe(77);
+    expect(result.writing_part2_score).toBe(7);
+  });
+
+  it("leaves the total empty until every section is scored", () => {
+    expect(attemptToResult(attempt({ writing_score: null })).total_score).toBeNull();
   });
 });
 

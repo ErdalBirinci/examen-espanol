@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Download, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileDown, Search, Trash2 } from "lucide-react";
 import {
   deleteAttempt,
   gradeAttempt,
@@ -26,7 +26,8 @@ import {
   type WritingRubric,
 } from "../lib/types";
 import { cn, errorMessage, formatDate, formatSeconds } from "../lib/utils";
-import { attemptTotal } from "../lib/scoring";
+import { attemptToResult, attemptTotal } from "../lib/scoring";
+import { downloadResultReport } from "../lib/resultReport";
 import { attemptsCsvFileName, attemptsToCsv } from "../lib/attemptExport";
 import { Badge, Button, EmptyState, Field, Modal, Notice, Spinner } from "../components/ui";
 import { ConfirmDialog, LevelBadge, PageHeader, Panel } from "./shared";
@@ -410,6 +411,8 @@ function AttemptDetail({
   const [emailWarning, setEmailWarning] = useState(false);
   const [audit, setAudit] = useState<GradingAuditEntry[]>([]);
   const [rubric, setRubric] = useState(() => initialRubric(attempt));
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -540,6 +543,18 @@ function AttemptDetail({
     }
   }
 
+  async function downloadPdf() {
+    setPdfBusy(true);
+    setPdfError(null);
+    try {
+      await downloadResultReport(attemptToResult(attempt));
+    } catch (err) {
+      setPdfError(errorMessage(err));
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function toggleRubric(enabled: boolean) {
     if (!enabled) {
       setRubric((prev) => ({ ...prev, enabled: false }));
@@ -615,6 +630,15 @@ function AttemptDetail({
               ? "Yazma 0–10 + 0–10, konuşma 0–10 + 0–10. Test ve dinleme sunucuda otomatik puanlanır."
               : "Eski kayıt: puanlar 0–100 arasındadır."}
           </span>
+          <Button
+            variant="secondary"
+            onClick={() => void downloadPdf()}
+            loading={pdfBusy}
+            disabled={attemptTotal(attempt) === null}
+            icon={<FileDown className="size-3.5" />}
+          >
+            Sonuç PDF'i
+          </Button>
           <Button variant="ghost" onClick={onClose}>
             Kapat
           </Button>
@@ -631,6 +655,7 @@ function AttemptDetail({
     >
       <div className="space-y-4">
         {error && <Notice tone="danger">{error}</Notice>}
+        {pdfError && <Notice tone="danger">{pdfError}</Notice>}
         {emailNotice && <Notice tone={emailWarning ? "warning" : "success"}>{emailNotice}</Notice>}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
